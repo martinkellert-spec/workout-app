@@ -6,7 +6,7 @@ import {
 } from './logic.js';
 import { lineChart, barChart } from './charts.js';
 
-export const APP_VERSION = '1.1.0';
+export const APP_VERSION = '1.1.1';
 
 const $app = document.getElementById('app');
 const $tabbar = document.getElementById('tabbar');
@@ -592,6 +592,7 @@ $app.addEventListener('touchend', (e) => {
 }, { passive: true });
 
 // ---------- Service Worker & Update-Hinweis ----------
+let updateRequested = false;
 function registerSW() {
   if (!('serviceWorker' in navigator)) return;
   navigator.serviceWorker.register('sw.js').then((reg) => {
@@ -600,7 +601,7 @@ function registerSW() {
       const b = document.createElement('div');
       b.className = 'banner';
       b.innerHTML = '<span>Neue Version verfügbar</span><button>Neu laden</button>';
-      b.querySelector('button').onclick = () => w.postMessage('skipWaiting');
+      b.querySelector('button').onclick = () => { updateRequested = true; w.postMessage('skipWaiting'); };
       document.body.appendChild(b);
     };
     if (reg.waiting && navigator.serviceWorker.controller) show(reg.waiting);
@@ -610,8 +611,8 @@ function registerSW() {
     });
     document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') reg.update().catch(() => {}); });
   });
-  let reloading;
-  navigator.serviceWorker.addEventListener('controllerchange', () => { if (!reloading) { reloading = true; location.reload(); } });
+  // Nur neu laden, wenn der Nutzer das Update angefordert hat (nicht beim allerersten Installieren)
+  navigator.serviceWorker.addEventListener('controllerchange', () => { if (updateRequested) { updateRequested = false; location.reload(); } });
 }
 
 (async function init() {
