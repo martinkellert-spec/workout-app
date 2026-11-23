@@ -53,6 +53,11 @@ export function normalizePlan(raw) {
     name: String(raw.name || 'Mein Plan'),
     version: Number(raw.version) || 0,
     source: raw.source ? String(raw.source) : '',
+    cooldowns: Array.isArray(raw.cooldowns) ? raw.cooldowns.map((c, i) => ({
+      id: String(c.id || slug(c.name || `cooldown-${i}`)),
+      name: String(c.name || `Cool-down ${i + 1}`),
+      items: (c.items || []).map((x) => ({ name: String(x.name), sec: Number(x.sec) || 30, sides: !!x.sides, hint: x.hint ? String(x.hint) : '' })),
+    })) : [],
     tests: t && Array.isArray(t.items) && t.items.length ? {
       everyWeeks: Number(t.everyWeeks) || 6,
       items: t.items.map((x, i) => ({
@@ -490,4 +495,14 @@ export function alternativesFor(exKey, lib, exclude = []) {
   const score = (x) => (x.patterns.some((p) => me.patterns.includes(p)) ? 2 : 0) + (x.muscles.some((m) => me.muscles.includes(m)) ? 1 : 0);
   return lib.filter((x) => x.key !== exKey && !exclude.includes(x.key) && score(x) > 0)
     .sort((a, b) => score(b) - score(a) || a.name.localeCompare(b.name, 'de'));
+}
+
+/** Cool-down in einzelne Schritte auflösen ("je Seite" → links + rechts) */
+export function expandCooldown(cd) {
+  const steps = [];
+  for (const x of cd?.items || []) {
+    if (x.sides) { steps.push({ name: `${x.name} links`, sec: x.sec, hint: x.hint }); steps.push({ name: `${x.name} rechts`, sec: x.sec, hint: x.hint }); }
+    else steps.push({ name: x.name, sec: x.sec, hint: x.hint });
+  }
+  return { steps, total: steps.reduce((a, x) => a + x.sec, 0) };
 }

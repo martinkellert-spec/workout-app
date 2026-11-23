@@ -1,6 +1,6 @@
 {
  "name": "Finaler 3er-Plan",
- "version": 4,
+ "version": 5,
  "tests": {
   "everyWeeks": 6,
   "items": [
@@ -33,6 +33,80 @@
    }
   ]
  },
+ "cooldowns": [
+  {
+   "id": "jeden-tag",
+   "name": "Stretchen für jeden Tag",
+   "items": [
+    {
+     "name": "World's Greatest Stretch",
+     "sec": 30,
+     "sides": true,
+     "hint": "Ausfallschritt, Ellbogen Richtung Boden, dann Arm zur Decke aufdrehen"
+    },
+    {
+     "name": "Pancake Stretch",
+     "sec": 30,
+     "hint": "Grätschsitz, mit geradem Rücken nach vorn lehnen"
+    },
+    {
+     "name": "Toe Reaches",
+     "sec": 30,
+     "hint": "Stehend, Beine gestreckt, locker Richtung Zehen hängen lassen"
+    },
+    {
+     "name": "Deep Squat Hold",
+     "sec": 60,
+     "hint": "Tiefe Hocke, Fersen am Boden, Ellbogen drücken die Knie leicht nach außen"
+    },
+    {
+     "name": "Shoulder Stretch",
+     "sec": 30,
+     "sides": true,
+     "hint": "Arm gestreckt vor der Brust, mit dem anderen Arm heranziehen"
+    },
+    {
+     "name": "Triceps Stretch",
+     "sec": 30,
+     "sides": true,
+     "hint": "Hand hinter den Kopf zwischen die Schulterblätter, Ellbogen sanft ziehen"
+    }
+   ]
+  },
+  {
+   "id": "durch-und-durch",
+   "name": "Durch und durch gedehnt",
+   "items": [
+    {
+     "name": "Toe Reaches",
+     "sec": 30,
+     "hint": "Stehend, Beine gestreckt, locker Richtung Zehen hängen lassen"
+    },
+    {
+     "name": "Pancake Stretch",
+     "sec": 60,
+     "hint": "Grätschsitz, mit geradem Rücken nach vorn lehnen"
+    },
+    {
+     "name": "World's Greatest Stretch",
+     "sec": 30,
+     "sides": true,
+     "hint": "Ausfallschritt, Ellbogen Richtung Boden, dann Arm zur Decke aufdrehen"
+    },
+    {
+     "name": "Camel Hold",
+     "sec": 30,
+     "hint": "Kniestand, Hüfte nach vorn, Hände zu den Fersen – öffnet Hüftbeuger und Brust"
+    },
+    {
+     "name": "Chest Stretch",
+     "sec": 30,
+     "sides": true,
+     "hint": "Unterarm an Wand oder Türrahmen, Oberkörper sanft wegdrehen"
+    }
+   ]
+  }
+ ],
  "days": [
   {
    "id": "Mo",
@@ -170,37 +244,9 @@
       12.5,
       15
      ],
-     "rest": 75,
-     "hint": "Je Seite · hinterer Fuß auf Sofa/Bank · Gewicht pro Kurzhantel"
-    },
-    {
-     "name": "Hip Thrusts",
-     "sets": 3,
-     "repsMin": 10,
-     "repsMax": 15,
-     "weight": 16,
-     "weights": [
-      12,
-      15,
-      16
-     ],
-     "rest": 75,
-     "hint": "Auf dem Boden: Rücken liegt, Füße aufgestellt, Gewicht auf der Hüfte – Becken nach oben drücken, oben 1 Sek. halten"
-    },
-    {
-     "name": "DB Curls",
-     "sets": 3,
-     "repsMin": 10,
-     "repsMax": 15,
-     "weight": 7.5,
-     "weights": [
-      7.5,
-      12.5,
-      15
-     ],
-     "group": "Arme A",
      "rest": 0,
-     "hint": "Gewicht pro Kurzhantel"
+     "hint": "Je Seite · hinterer Fuß auf Sofa/Bank · Gewicht pro Kurzhantel",
+     "group": "A"
     },
     {
      "name": "Trizeps Überkopf",
@@ -215,9 +261,39 @@
       15,
       16
      ],
-     "group": "Arme A",
-     "rest": 45,
+     "group": "A",
+     "rest": 60,
      "hint": "Ein Gewicht mit beiden Händen hinter dem Kopf, Ellbogen eng"
+    },
+    {
+     "name": "Hip Thrusts",
+     "sets": 3,
+     "repsMin": 10,
+     "repsMax": 15,
+     "weight": 16,
+     "weights": [
+      12,
+      15,
+      16
+     ],
+     "rest": 0,
+     "hint": "Auf dem Boden: Rücken liegt, Füße aufgestellt, Gewicht auf der Hüfte – Becken nach oben drücken, oben 1 Sek. halten",
+     "group": "B"
+    },
+    {
+     "name": "DB Curls",
+     "sets": 3,
+     "repsMin": 10,
+     "repsMax": 15,
+     "weight": 7.5,
+     "weights": [
+      7.5,
+      12.5,
+      15
+     ],
+     "group": "B",
+     "rest": 60,
+     "hint": "Gewicht pro Kurzhantel"
     },
     {
      "name": "Hammer Curls",
@@ -230,19 +306,8 @@
       12.5,
       15
      ],
-     "group": "Arme B",
-     "rest": 0,
-     "hint": "Neutraler Griff (Daumen oben) · Gewicht pro Kurzhantel"
-    },
-    {
-     "name": "Enge Push-ups",
-     "type": "bodyweight",
-     "sets": 2,
-     "repsMin": 10,
-     "repsMax": 15,
-     "group": "Arme B",
      "rest": 45,
-     "hint": "Ellbogen eng am Körper – Trizeps"
+     "hint": "Neutraler Griff (Daumen oben) · Gewicht pro Kurzhantel"
     },
     {
      "name": "Windshield Wipers",

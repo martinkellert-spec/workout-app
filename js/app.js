@@ -5,11 +5,11 @@ import {
   weekStart, weeklyStats, streak, fmtNum, fmtDuration, epley, topWeight, unitLabel, nextOpen, supersetNext,
   nextWeight, prevWeight, rirSummary, fmtRir, planDayFor, sameDay, testStatus, testHistory, testDelta,
   fmtTestValue, fmtTime, insights, weekProgress, estimateMinutes, blocks, parseWarmup,
-  normalizeLibrary, applyEdits, alternativesFor, fromLibrary,
+  normalizeLibrary, applyEdits, alternativesFor, fromLibrary, expandCooldown,
 } from './logic.js';
 import { lineChart, barChart } from './charts.js';
 
-export const APP_VERSION = '3.1.0';
+export const APP_VERSION = '3.2.0';
 
 const $app = document.getElementById('app');
 const $tabbar = document.getElementById('tabbar');
@@ -110,7 +110,7 @@ const TABS = [
   ['#/settings', 'Mehr', '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 00.3 1.8l.1.1a2 2 0 11-2.8 2.8l-.1-.1a1.7 1.7 0 00-1.8-.3 1.7 1.7 0 00-1 1.5V21a2 2 0 11-4 0v-.1a1.7 1.7 0 00-1.1-1.5 1.7 1.7 0 00-1.8.3l-.1.1a2 2 0 11-2.8-2.8l.1-.1a1.7 1.7 0 00.3-1.8 1.7 1.7 0 00-1.5-1H3a2 2 0 110-4h.1a1.7 1.7 0 001.5-1.1 1.7 1.7 0 00-.3-1.8l-.1-.1a2 2 0 112.8-2.8l.1.1a1.7 1.7 0 001.8.3H9a1.7 1.7 0 001-1.5V3a2 2 0 114 0v.1a1.7 1.7 0 001 1.5 1.7 1.7 0 001.8-.3l.1-.1a2 2 0 112.8 2.8l-.1.1a1.7 1.7 0 00-.3 1.8V9a1.7 1.7 0 001.5 1H21a2 2 0 110 4h-.1a1.7 1.7 0 00-1.5 1z"/>'],
 ];
 function renderTabbar(route) {
-  const hidden = route === 'train' || route === 'done' || route === 'test';
+  const hidden = route === 'train' || route === 'done' || route === 'test' || route === 'cooldown';
   $tabbar.classList.toggle('hidden', hidden);
   $app.classList.toggle('no-tabs', hidden);
   const base = { '': '#/', history: '#/history', session: '#/history', exercise: '#/history', testinfo: '#/history', week: '#/week', settings: '#/settings', library: '#/settings' }[route] || '#/';
@@ -120,9 +120,9 @@ function renderTabbar(route) {
 
 function render() {
   const [route, arg] = location.hash.replace(/^#\/?/, '').split('/');
-  if ((route === 'train' || route === 'done') && !S.draft) return go('#/');
+  if ((route === 'train' || route === 'done' || route === 'cooldown') && !S.draft) return go('#/');
   renderTabbar(route);
-  const views = { '': viewStart, train: viewTrain, done: viewDone, history: viewHistory, session: viewSession, exercise: viewExercise, week: viewWeek, settings: viewSettings, test: viewTest, testinfo: viewTestInfo, review: viewReview, library: viewLibrary };
+  const views = { '': viewStart, train: viewTrain, done: viewDone, history: viewHistory, session: viewSession, exercise: viewExercise, week: viewWeek, settings: viewSettings, test: viewTest, testinfo: viewTestInfo, review: viewReview, library: viewLibrary, cooldown: viewCooldown };
   $app.innerHTML = (views[route] || viewStart)(decodeURIComponent(arg || ''));
   if (route !== 'train') window.scrollTo(0, 0);
   tick();
@@ -188,7 +188,7 @@ function dayDetail(day, sel) {
   return `<div class="dayhead">
       <div class="eyebrow">${esc(relDay(sel))}${past ? ' · verpasst' : ''}</div>
       <div class="dtitle">${esc(title)}</div>
-      <div class="dmeta"><span>${ICON_CLOCK}≈ ${estimateMinutes(day, S.settings.restDefault)} Min.</span><span>${ICON_LIST}${day.exercises.length} Übungen</span></div>
+      <div class="dmeta"><span>${ICON_CLOCK}≈ ${estimateMinutes(day, S.settings.restDefault) + (cdList().length ? Math.min(...cdList().map(cdMinutes)) : 0)} Min.</span><span>${ICON_LIST}${day.exercises.length} Übungen</span></div>
       ${day.equipment ? `<div class="dmeta"><span>${ICON_TOOL}${esc(day.equipment)}</span></div>` : ''}
     </div>
     ${warmupSection(day.note)}
@@ -199,6 +199,7 @@ function dayDetail(day, sel) {
         ${b.items.length === 1 && b.items[0].hint ? `<div class="hintl">${esc(b.items[0].hint)}</div>` : ''}
       </div>`).join('')}</div>
     </details>
+    ${cooldownSection()}
     <div class="cta2"><button class="btn pill glass" data-a="customize" data-id="${esc(day.id)}" data-t="${sel}">Anpassen</button><button class="btn pill primary" data-a="start" data-id="${esc(day.id)}">${past ? 'Nachholen' : 'Starten'}</button></div>`;
 }
 
@@ -369,6 +370,7 @@ function tick() {
     const m = Math.floor((Date.now() - d.startedAt) / 60000);
     el.textContent = `${Math.floor(m / 60)}:${String(m % 60).padStart(2, '0')}`;
   }
+  cooldownTick();
   const w = document.getElementById('watch');
   if (w && S.testDraft?.watch?.running) w.textContent = fmtTime(watchSeconds(S.testDraft));
   const cdEl = document.getElementById('cd');
@@ -472,6 +474,7 @@ function viewDone() {
       <div class="stat"><b>${fmtNum(Math.round(vol))}</b><span>kg bewegt</span></div>
     </div>
     ${prs.length ? `<h2>Neue Rekorde 🎉</h2>${prs.map((p) => `<div class="pr">${esc(p.name)}: ${esc(p.text)}</div>`).join('')}` : ''}
+    ${cooldownCard(d)}
     <h2>Wie hart war die Session?</h2>
     ${rpePicker(d.rpe)}
     <h2>Notiz</h2>
@@ -499,6 +502,7 @@ async function saveSession() {
   const session = {
     id: d.id, startedAt: d.startedAt, endedAt: Date.now(), planName: d.planName, dayId: d.dayId, dayName: d.dayName,
     feeling: d.feeling || null, rpe: d.rpe || null, note: d.note,
+    cooldown: d.cooldown ? { id: d.cooldown.id, name: d.cooldown.name, completed: !!d.cooldown.completed } : null,
     exercises: d.exercises.map((e) => ({ key: e.key, name: e.name, type: e.type, unit: e.unit || 'reps', note: e.note, sets: e.sets.map(({ weight, reps, rir, done: dn }) => ({ weight, reps, rir: rir ?? null, done: dn })) })),
   };
   await db.putSession(session);
@@ -543,6 +547,7 @@ function viewSession(id) {
       <div class="stat"><b>${fmtNum(Math.round(volume(s)))}</b><span>kg bewegt</span></div>
       <div class="stat"><b>${s.rpe ? s.rpe : (faces[s.feeling || 0] || '–')}</b><span>${s.rpe ? `RPE · ${RPE_TEXT[s.rpe]}` : 'Gefühl'}</span></div></div>
     ${s.note ? `<div class="card">${esc(s.note)}</div>` : ''}
+    ${s.cooldown ? `<div class="card small">Cool-down: <b>${esc(s.cooldown.name)}</b> ${s.cooldown.completed ? '✓' : '(abgebrochen)'}</div>` : ''}
     <div class="list">${s.exercises.map((e) => `<a class="item" href="#/exercise/${encodeURIComponent(e.key)}" style="color:inherit;text-decoration:none"><div style="flex:1;min-width:0"><b>${esc(e.name)}</b>
       <div class="muted small">${esc([describePerf(e, e.type, e.unit), rirSummary(e)].filter(Boolean).join(' · '))}</div>${e.note ? `<div class="small" style="font-style:italic;margin-top:2px">„${esc(e.note)}“</div>` : ''}</div><span class="chev"></span></a>`).join('')}</div>
     <button class="btn danger" data-a="delSession" data-id="${s.id}">Training löschen</button>`;
@@ -750,6 +755,87 @@ function archiveSection() {
     ${arch.map((a, i) => `<button class="item" data-a="archiveItem" data-i="${i}"><div style="flex:1"><b>${esc(a.name)}</b>
       <div class="muted small">Version ${a.version || 1} · bis ${new Date(a.savedAt).toLocaleDateString('de-DE', { dateStyle: 'medium' })}</div></div><span class="chev"></span></button>`).join('')}
     ${!arch.length ? '<div class="item muted small">Frühere Planstände erscheinen hier automatisch.</div>' : ''}</div>`;
+}
+
+// ---------- Cool-down ----------
+const cdList = () => S.plan?.cooldowns || [];
+const cdById = (id) => cdList().find((c) => c.id === id);
+const cdMinutes = (c) => Math.max(1, Math.round(expandCooldown(c).total / 60));
+
+/** Abschnitt in der Tagesansicht: beide Routinen als Liste */
+function cooldownSection() {
+  if (!cdList().length) return '';
+  return `<details class="sec"><summary>Cool-down<span class="sumx">Auswahl nach dem Training</span><span class="chev"></span></summary>
+    <div class="tl">${cdList().map((c) => `<div class="blk"><div class="blkh">${esc(c.name)} · ${cdMinutes(c)} Min.</div>
+      ${c.items.map((x) => `<div class="exl"><span class="nm">${esc(x.name)}</span><span class="vv">${x.sec} s${x.sides ? ' je Seite' : ''}</span></div>`).join('')}</div>`).join('')}</div></details>`;
+}
+
+/** Karte auf dem Abschluss-Screen */
+function cooldownCard(d) {
+  if (!cdList().length) return '';
+  const cd = d.cooldown;
+  if (cd?.completed) return `<div class="card row"><div class="grow"><div class="eyebrow">Cool-down erledigt ✓</div><div class="small" style="margin-top:2px">${esc(cd.name)}</div></div></div>`;
+  return `<h2>Cool-down</h2>
+    ${cd && !cd.completed && cd.idx > 0 ? `<div class="muted small" style="margin:-4px 4px 8px">${esc(cd.name)} abgebrochen – noch einmal starten?</div>` : ''}
+    <div class="list">${cdList().map((c) => `<button class="item" data-a="cdPick" data-id="${esc(c.id)}"><div style="flex:1;min-width:0"><b>${esc(c.name)}</b>
+      <div class="muted small">${cdMinutes(c)} Min. · ${c.items.map((x) => esc(x.name)).join(', ')}</div></div><span class="playico">▶</span></button>`).join('')}</div>`;
+}
+
+function cdLeftSec(cd, steps) {
+  if (!cd || cd.idx >= steps.length) return 0;
+  if (cd.paused) return cd.left ?? steps[cd.idx].sec;
+  return Math.max(0, Math.ceil((cd.endsAt - Date.now()) / 1000));
+}
+
+function viewCooldown() {
+  const d = S.draft, cd = d?.cooldown, c = cd && cdById(cd.id);
+  if (!c) return '<div class="empty">Kein Cool-down aktiv.</div>';
+  const { steps, total } = expandCooldown(c);
+  const st = steps[Math.min(cd.idx, steps.length - 1)];
+  const doneSec = steps.slice(0, cd.idx).reduce((a, x) => a + x.sec, 0) + (st.sec - cdLeftSec(cd, steps));
+  const next = steps.slice(cd.idx + 1, cd.idx + 4);
+  return `<div class="tbar"><button class="iconbtn" data-a="cdEnd" aria-label="Beenden">${ICON_X}</button><span class="crumb">${esc(c.name)}</span><span class="time">${cd.idx + 1}/${steps.length}</span></div>
+    <div class="cdwrap">
+      <div class="ring big" id="cdring">${ringSvg(total ? doneSec / total : 0)}</div>
+      <div class="eyebrow" style="margin-top:22px">Dehnung ${cd.idx + 1} von ${steps.length}</div>
+      <div class="xtitle" style="text-align:center">${esc(st.name)}</div>
+      <div class="num cdtime" id="cdtime">${fmtTime(cdLeftSec(cd, steps))}</div>
+      ${st.hint ? `<p class="muted small" style="text-align:center;max-width:320px;margin:0 auto">${esc(st.hint)}</p>` : ''}
+    </div>
+    ${next.length ? `<h2>Danach</h2><div class="list">${next.map((x) => `<div class="item"><span style="flex:1">${esc(x.name)}</span><span class="muted small num">${x.sec} s</span></div>`).join('')}</div>` : ''}
+    <div class="cta"><div class="cta2" style="position:static;margin:0 auto;max-width:520px">
+      <button class="btn pill glass" data-a="cdSkip">Überspringen</button>
+      <button class="btn pill primary" data-a="cdToggle">${cd.paused ? 'Weiter' : 'Pause'}</button></div></div>`;
+}
+
+function cdAdvance(withBeep) {
+  const d = S.draft, cd = d.cooldown, c = cdById(cd.id);
+  const { steps } = expandCooldown(c);
+  if (withBeep) beep();
+  cd.idx++;
+  if (cd.idx >= steps.length) {
+    cd.completed = true; cd.endsAt = null; cd.paused = false;
+    saveDraft(); toast('Cool-down geschafft'); go('#/done'); return;
+  }
+  cd.paused = false; cd.left = null; cd.endsAt = Date.now() + steps[cd.idx].sec * 1000;
+  saveDraft(); render();
+}
+
+// Wird aus tick() aufgerufen
+function cooldownTick() {
+  if (!location.hash.startsWith('#/cooldown')) return;
+  const cd = S.draft?.cooldown, c = cd && cdById(cd.id);
+  if (!c || cd.completed || cd.paused) return;
+  const { steps, total } = expandCooldown(c);
+  const left = cdLeftSec(cd, steps);
+  const el = document.getElementById('cdtime');
+  if (el) el.textContent = fmtTime(left);
+  const ring = document.getElementById('cdring');
+  if (ring && total) {
+    const doneSec = steps.slice(0, cd.idx).reduce((a, x) => a + x.sec, 0) + (steps[cd.idx].sec - left);
+    ring.innerHTML = ringSvg(doneSec / total);
+  }
+  if (left <= 0) cdAdvance(true);
 }
 
 // ---------- Leistungstests ----------
@@ -1031,6 +1117,23 @@ const actions = {
   },
   pickDay: (a) => { S.pickDay = a.dataset.id; render(); },
   selDay: (a) => { S.selDate = +a.dataset.t; render(); },
+  cdPick: (a) => {
+    const c = cdById(a.dataset.id); if (!c) return;
+    unlockAudio(); keepAwake(true);
+    S.draft.note = document.getElementById('sessnote')?.value ?? S.draft.note;
+    S.draft.cooldown = { id: c.id, name: c.name, idx: 0, paused: false, left: null, completed: false, endsAt: Date.now() + expandCooldown(c).steps[0].sec * 1000 };
+    saveDraft(); go('#/cooldown');
+  },
+  cdToggle: () => {
+    const cd = S.draft.cooldown, steps = expandCooldown(cdById(cd.id)).steps;
+    if (cd.paused) { cd.endsAt = Date.now() + (cd.left ?? steps[cd.idx].sec) * 1000; cd.paused = false; cd.left = null; }
+    else { cd.left = cdLeftSec(cd, steps); cd.paused = true; cd.endsAt = null; }
+    saveDraft(); render();
+  },
+  cdSkip: () => cdAdvance(false),
+  cdEnd: () => confirmSheet('Cool-down beenden?', 'Du kommst zurück zum Abschluss und kannst speichern.', 'Beenden', () => {
+    const cd = S.draft.cooldown; cd.paused = true; cd.endsAt = null; saveDraft(); go('#/done');
+  }, false),
   customize: (a) => customizeDay(a.dataset.id, +a.dataset.t),
   openLibrary: async () => { await ensureLib(); go('#/library'); },
   libMuscle: (a) => { S.libMuscle = a.dataset.m; render(); },

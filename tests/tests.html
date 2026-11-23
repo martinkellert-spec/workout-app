@@ -190,6 +190,13 @@ t('Anpassungen anwenden', () => {
   eq(plan.days[0].exercises.length, 2);
 });
 
+t('Cool-down auflösen', () => {
+  const plan = L.normalizePlan({ cooldowns: [{ name: 'Test', items: [{ name: 'WGS', sec: 30, sides: true }, { name: 'Squat Hold', sec: 60 }] }], days: [{ exercises: [{ name: 'X' }] }] });
+  const c = L.expandCooldown(plan.cooldowns[0]);
+  eq([plan.cooldowns[0].id, c.steps.map((x) => x.name), c.total], ['test', ['WGS links', 'WGS rechts', 'Squat Hold'], 120]);
+  eq(L.normalizePlan({ days: [{ exercises: [{ name: 'X' }] }] }).cooldowns, []);
+});
+
 out.insertAdjacentHTML('afterbegin', `<h2 id="summary" class="${fail ? 'fail' : 'ok'}">${pass} bestanden, ${fail} fehlgeschlagen</h2>`);
 </script>
 </body>
