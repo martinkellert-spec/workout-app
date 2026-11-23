@@ -172,6 +172,24 @@ t('Test am Trainingstag gilt nicht als verpasst', () => {
   eq(L.insights(plan, [], now).some((i) => i.text.includes('geplante Einheit')), true);
 });
 
+const LIB = L.normalizeLibrary({ exercises: [
+  { name: 'DB Curls', muscles: ['Bizeps'], patterns: ['biceps'], repsMin: 10, repsMax: 15, weight: 7.5 },
+  { name: 'Hammer Curls', muscles: ['Bizeps', 'Unterarme'], patterns: ['biceps'], repsMin: 10, repsMax: 15, weight: 7.5 },
+  { name: 'Chin-ups', muscles: ['Rücken', 'Bizeps'], patterns: ['v-pull'], type: 'bodyweight' },
+  { name: 'Plank', muscles: ['Core'], patterns: ['core-anti'], unit: 'sec', repsMin: 30, repsMax: 60 },
+] });
+t('Alternativen: Muster vor Muskel', () => {
+  eq(L.alternativesFor('db-curls', LIB).map((x) => x.key), ['hammer-curls', 'chin-ups']);
+});
+t('Anpassungen anwenden', () => {
+  const plan = L.normalizePlan({ days: [{ id: 'Mi', exercises: [{ name: 'DB Curls', sets: 2, group: 'A', rest: 0 }, { name: 'Bird Dogs' }] }] });
+  const p2 = L.applyEdits(plan, { Mi: { replace: { 'db-curls': 'hammer-curls' }, remove: ['bird-dogs'], add: ['plank'] } }, LIB);
+  const ex = p2.days[0].exercises;
+  eq(ex.map((e) => e.key), ['hammer-curls', 'plank']);
+  eq([ex[0].sets, ex[0].group, ex[0].rest, ex[0].swappedFrom, ex[1].unit], [2, 'A', 0, 'db-curls', 'sec']);
+  eq(plan.days[0].exercises.length, 2);
+});
+
 out.insertAdjacentHTML('afterbegin', `<h2 id="summary" class="${fail ? 'fail' : 'ok'}">${pass} bestanden, ${fail} fehlgeschlagen</h2>`);
 </script>
 </body>

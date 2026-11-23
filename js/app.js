@@ -5,14 +5,15 @@ import {
   weekStart, weeklyStats, streak, fmtNum, fmtDuration, epley, topWeight, unitLabel, nextOpen, supersetNext,
   nextWeight, prevWeight, rirSummary, fmtRir, planDayFor, sameDay, testStatus, testHistory, testDelta,
   fmtTestValue, fmtTime, insights, weekProgress, estimateMinutes, blocks, parseWarmup,
+  normalizeLibrary, applyEdits, alternativesFor, fromLibrary,
 } from './logic.js';
 import { lineChart, barChart } from './charts.js';
 
-export const APP_VERSION = '3.0.1';
+export const APP_VERSION = '3.1.0';
 
 const $app = document.getElementById('app');
 const $tabbar = document.getElementById('tabbar');
-const S = { calOffset: 0, selDate: null, review: null, testDraft: null, plan: null, sessions: [], draft: null, settings: { restDefault: 90 }, pickDay: null, histTab: 'sessions' };
+const S = { basePlan: null, edits: {}, lib: null, daySwap: null, planArchive: [], libMuscle: '', libQuery: '', calOffset: 0, selDate: null, review: null, testDraft: null, plan: null, sessions: [], draft: null, settings: { restDefault: 90 }, pickDay: null, histTab: 'sessions' };
 
 const val = (id) => document.getElementById(id)?.value || '';
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -84,9 +85,16 @@ document.addEventListener('visibilitychange', () => { if (document.visibilitySta
 
 // ---------- Daten laden ----------
 async function load() {
-  [S.plan, S.sessions, S.draft] = await Promise.all([db.getMeta('plan'), db.allSessions(), db.getMeta('draft')]);
+  let base, eff;
+  [base, eff, S.sessions, S.draft] = await Promise.all([db.getMeta('planBase'), db.getMeta('plan'), db.allSessions(), db.getMeta('draft')]);
+  S.basePlan = base || eff || null;
   // Gespeicherten Plan mit aktueller Logik neu einlesen (ergänzt z. B. Wochentage bei alten Plänen)
-  if (S.plan) { try { S.plan = normalizePlan(S.plan); } catch { /* alter Plan bleibt */ } }
+  if (S.basePlan) { try { S.basePlan = normalizePlan(S.basePlan); } catch { /* alter Plan bleibt */ } }
+  S.edits = (await db.getMeta('planEdits')) || {};
+  S.daySwap = (await db.getMeta('daySwap')) || null;
+  S.planArchive = (await db.getMeta('planArchive')) || [];
+  await ensureLib();
+  recomputePlan();
   S.settings = { ...S.settings, ...((await db.getMeta('settings')) || {}) };
   S.sync = await sync.getConfig();
   S.review = (await db.getMeta('review')) || null;
@@ -105,7 +113,7 @@ function renderTabbar(route) {
   const hidden = route === 'train' || route === 'done' || route === 'test';
   $tabbar.classList.toggle('hidden', hidden);
   $app.classList.toggle('no-tabs', hidden);
-  const base = { '': '#/', history: '#/history', session: '#/history', exercise: '#/history', testinfo: '#/history', week: '#/week', settings: '#/settings' }[route] || '#/';
+  const base = { '': '#/', history: '#/history', session: '#/history', exercise: '#/history', testinfo: '#/history', week: '#/week', settings: '#/settings', library: '#/settings' }[route] || '#/';
   $tabbar.innerHTML = TABS.map(([h, label, icon]) =>
     `<a href="${h}" class="${h === base ? 'active' : ''}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${icon}</svg>${label}</a>`).join('');
 }
@@ -114,7 +122,7 @@ function render() {
   const [route, arg] = location.hash.replace(/^#\/?/, '').split('/');
   if ((route === 'train' || route === 'done') && !S.draft) return go('#/');
   renderTabbar(route);
-  const views = { '': viewStart, train: viewTrain, done: viewDone, history: viewHistory, session: viewSession, exercise: viewExercise, week: viewWeek, settings: viewSettings, test: viewTest, testinfo: viewTestInfo, review: viewReview };
+  const views = { '': viewStart, train: viewTrain, done: viewDone, history: viewHistory, session: viewSession, exercise: viewExercise, week: viewWeek, settings: viewSettings, test: viewTest, testinfo: viewTestInfo, review: viewReview, library: viewLibrary };
   $app.innerHTML = (views[route] || viewStart)(decodeURIComponent(arg || ''));
   if (route !== 'train') window.scrollTo(0, 0);
   tick();
@@ -191,7 +199,7 @@ function dayDetail(day, sel) {
         ${b.items.length === 1 && b.items[0].hint ? `<div class="hintl">${esc(b.items[0].hint)}</div>` : ''}
       </div>`).join('')}</div>
     </details>
-    <div class="cta2"><button class="btn pill glass" data-a="pickOther">Anpassen</button><button class="btn pill primary" data-a="start" data-id="${esc(day.id)}">${past ? 'Nachholen' : 'Starten'}</button></div>`;
+    <div class="cta2"><button class="btn pill glass" data-a="customize" data-id="${esc(day.id)}" data-t="${sel}">Anpassen</button><button class="btn pill primary" data-a="start" data-id="${esc(day.id)}">${past ? 'Nachholen' : 'Starten'}</button></div>`;
 }
 
 function dayCard(sel) {
@@ -204,7 +212,7 @@ function dayCard(sel) {
       ${x.kind === 'test' && planDayFor(S.plan, sel) ? `<div class="muted small" style="margin:-4px 0 10px">statt ${esc(planDayFor(S.plan, sel).focus || planDayFor(S.plan, sel).name)}</div>` : ''}
       <div class="donerow"><span>${fmtDuration(x.endedAt - x.startedAt)}</span>${x.kind === 'test' ? `<span>${((n) => `${n} ${n === 1 ? 'Test' : 'Tests'}`)((x.results || []).filter((r) => r.value != null).length)}</span>` : `<span>${fmtNum(Math.round(volume(x)))} kg</span>`}${x.rpe ? `<span>RPE ${x.rpe}</span>` : ''}<span class="chev" style="margin-left:auto"></span></div></a>`).join('');
   }
-  const day = planDayFor(S.plan, sel);
+  const day = effectiveDay(planDayFor(S.plan, sel), sel);
   if (!day) {
     return `<div class="hero rest-card"><div class="label" style="color:var(--muted)">${esc(label)}</div><div class="day">Kein Training</div>
       <button class="textlink" style="margin:4px 0 0" data-a="pickOther">Trotzdem trainieren</button></div>`;
@@ -256,7 +264,7 @@ function viewStart() {
 }
 
 function startTraining(dayId) {
-  const day = S.plan.days.find((d) => d.id === dayId);
+  const day = effectiveDay(S.plan.days.find((d) => d.id === dayId), S.selDate ?? Date.now());
   S.draft = {
     id: String(Date.now()), startedAt: Date.now(), planName: S.plan.name, dayId: day.id, dayName: day.name, dayNote: day.note || '', idx: 0,
     rest: null,
@@ -563,6 +571,187 @@ function viewExercise(key) {
     <div class="list">${h.map((p) => `<div class="item"><div style="flex:1"><b>${esc(describePerf(p, info.type, info.unit))}</b>${rirSummary(p) ? ` <span class="muted small">· ${esc(rirSummary(p))}</span>` : ''}<div class="muted small">${dateLong(p.date)}</div>${p.note ? `<div class="small" style="font-style:italic">„${esc(p.note)}“</div>` : ''}</div></div>`).join('')}</div>`;
 }
 
+// ---------- Plan-Anpassungen, Bibliothek, Archiv ----------
+async function ensureLib() {
+  if (S.lib?.length) return S.lib;
+  try { S.lib = normalizeLibrary(await (await fetch('plans/library.json')).json()); } catch { S.lib = S.lib || []; }
+  return S.lib;
+}
+function recomputePlan() { S.plan = applyEdits(S.basePlan, S.edits, S.lib); }
+async function persistPlan() {
+  recomputePlan();
+  await db.setMeta('planBase', S.basePlan);
+  await db.setMeta('plan', S.plan); // wirksamer Plan (für Backup und Wochenreview)
+  await db.setMeta('planEdits', S.edits || {});
+}
+const dayEdits = (dayId) => (S.edits[dayId] ||= { replace: {}, remove: [], add: [] });
+
+/** Tag inkl. „nur heute“-Tausch für ein Datum */
+function effectiveDay(day, ts) {
+  const sw = S.daySwap;
+  if (!day || !sw || sw.dayId !== day.id || !sameDay(sw.date, ts)) return day;
+  return applyEdits({ days: [day] }, { [day.id]: { replace: sw.replace } }, S.lib).days[0];
+}
+
+function libRow(x, action, extra = '') {
+  return `<button class="item" data-s="${action}" data-k="${esc(x.key)}" ${extra}><div style="flex:1;min-width:0"><b>${esc(x.name)}</b>
+    <div class="muted small">${esc(x.muscles.join(' · '))} · ${esc(x.equipment)}</div></div><span class="chev"></span></button>`;
+}
+
+/** Bibliotheks-Auswahl mit Suche und Muskel-Filter. onPick(item) */
+function libraryPicker(title, onPick, list = null, extraTop = '') {
+  const all = list || S.lib;
+  const muscles = [...new Set(S.lib.flatMap((x) => x.muscles))];
+  let q = '', m = '';
+  const bg = sheet(`<h3>${esc(title)}</h3>${extraTop}
+    <div class="form" style="margin-bottom:10px"><input id="libq" placeholder="Übung suchen …" autocomplete="off"></div>
+    ${list ? '' : `<div class="chips" style="margin:0 -18px 10px;padding:0 18px">${muscles.map((x) => `<button class="chip" data-s="mf" data-m="${esc(x)}">${esc(x)}</button>`).join('')}</div>`}
+    <div class="list sheetlist" id="liblist"></div>`, {
+    pick: (b) => { const it = S.lib.find((x) => x.key === b.dataset.k); if (it) onPick(it); },
+    mf: (b) => { m = m === b.dataset.m ? '' : b.dataset.m; bg.querySelectorAll('[data-s="mf"]').forEach((c) => c.classList.toggle('on', c.dataset.m === m)); draw(); },
+    remove: () => onPick(null),
+  });
+  const draw = () => {
+    const ql = q.toLowerCase();
+    const items = all.filter((x) => (!ql || x.name.toLowerCase().includes(ql) || x.muscles.join(' ').toLowerCase().includes(ql)) && (!m || x.muscles.includes(m)));
+    bg.querySelector('#liblist').innerHTML = items.length ? items.map((x) => libRow(x, 'pick')).join('') : '<div class="item muted small">Nichts gefunden.</div>';
+  };
+  bg.querySelector('#libq').addEventListener('input', (e) => { q = e.target.value.trim(); draw(); });
+  draw();
+  return bg;
+}
+
+/** „Anpassen“ in der Tagesansicht */
+async function customizeDay(dayId, ts) {
+  await ensureLib();
+  const day = effectiveDay(S.plan.days.find((d) => d.id === dayId), ts);
+  const e = S.edits[dayId];
+  const edited = e && (Object.keys(e.replace || {}).length || (e.remove || []).length || (e.add || []).length);
+  sheet(`<h3>Training anpassen</h3>
+    <div class="list sheetlist">${day.exercises.map((x) => `<button class="item" data-s="ex" data-k="${esc(x.key)}"><div style="flex:1;min-width:0"><b>${esc(x.name)}</b>
+      <div class="muted small">${x.sets} × ${x.repsMin === x.repsMax ? x.repsMin : `${x.repsMin}–${x.repsMax}`}${x.unit === 'sec' ? ' s' : ''}${x.swappedFrom ? ' · getauscht' : ''}</div></div><span class="swapico">⇄</span></button>`).join('')}</div>
+    <button class="btn" data-s="add">Übung hinzufügen</button>
+    <button class="btn" data-s="other">Anderes Training wählen</button>
+    ${edited ? '<button class="btn ghost danger" data-s="reset">Änderungen an diesem Tag zurücksetzen</button>' : ''}`, {
+    ex: (b) => swapFlow(dayId, ts, day.exercises.find((x) => x.key === b.dataset.k)),
+    add: () => libraryPicker('Übung hinzufügen', async (it) => {
+      if (!it) return;
+      const de = dayEdits(dayId); de.add = [...new Set([...(de.add || []), it.key])];
+      await persistPlan(); closeSheet(); toast(`${it.name} hinzugefügt`); render(); backupSoon();
+    }),
+    other: () => actions.pickOther(),
+    reset: () => confirmSheet('Änderungen zurücksetzen?', 'Der Tag sieht danach wieder aus wie im Plan.', 'Zurücksetzen', async () => {
+      delete S.edits[dayId]; if (S.daySwap?.dayId === dayId) { S.daySwap = null; await db.delMeta('daySwap'); }
+      await persistPlan(); toast('Zurückgesetzt'); render(); backupSoon();
+    }),
+  });
+}
+
+/** Übung tauschen: Alternativen → „nur heute“ oder „dauerhaft“ */
+function swapFlow(dayId, ts, cfg) {
+  const origKey = cfg.swappedFrom || cfg.key;
+  const day = S.plan.days.find((d) => d.id === dayId);
+  const alts = alternativesFor(cfg.key, S.lib, day.exercises.map((x) => x.key));
+  const bg = libraryPicker(`${cfg.name} tauschen`, (it) => {
+    if (!it) {
+      return confirmSheet(`${cfg.name} entfernen?`, 'Die Übung fällt dauerhaft aus diesem Trainingstag.', 'Entfernen', async () => {
+        const de = dayEdits(dayId);
+        if ((de.add || []).includes(cfg.key)) de.add = de.add.filter((k) => k !== cfg.key);
+        else { de.remove = [...new Set([...(de.remove || []), origKey])]; delete de.replace[origKey]; }
+        await persistPlan(); toast('Entfernt'); render(); backupSoon();
+      });
+    }
+    sheet(`<h3>${esc(cfg.name)} → ${esc(it.name)}</h3>
+      <button class="btn primary" data-s="today">Nur heute</button>
+      <button class="btn" data-s="perm">Dauerhaft im Plan</button>
+      <button class="btn ghost" data-s="x">Abbrechen</button>`, {
+      today: async () => {
+        S.daySwap = { date: dayStart(ts), dayId, replace: { ...(S.daySwap?.dayId === dayId && sameDay(S.daySwap.date, ts) ? S.daySwap.replace : {}), [cfg.key]: it.key } };
+        await db.setMeta('daySwap', S.daySwap); closeSheet(); toast(`Heute: ${it.name}`); render();
+      },
+      perm: async () => {
+        const de = dayEdits(dayId);
+        if ((de.add || []).includes(cfg.key)) de.add = de.add.map((k) => (k === cfg.key ? it.key : k));
+        else de.replace[origKey] = it.key;
+        await persistPlan(); closeSheet(); toast(`${it.name} ist jetzt im Plan`); render(); backupSoon();
+      },
+      x: closeSheet,
+    });
+  }, alts.length ? null : null, `<button class="btn ghost danger" data-s="remove" style="margin:-4px 0 8px">Übung entfernen</button>
+    ${alts.length ? `<div class="muted small" style="margin:0 4px 8px">Passend: ${alts.slice(0, 4).map((a) => esc(a.name)).join(', ')} …</div>` : ''}`);
+  // Passende Alternativen zuerst anzeigen
+  const list = bg.querySelector('#liblist');
+  const others = S.lib.filter((x) => !alts.includes(x) && x.key !== cfg.key);
+  list.innerHTML = alts.map((x) => libRow(x, 'pick')).join('') + (others.length ? `<div class="item muted small" style="font-weight:600">Weitere Übungen</div>${others.map((x) => libRow(x, 'pick')).join('')}` : '');
+}
+
+/** Im laufenden Training die aktuelle Übung tauschen (nur diese Session) */
+async function swapInTraining() {
+  await ensureLib();
+  const d = S.draft, ex = d.exercises[d.idx];
+  const alts = alternativesFor(ex.key, S.lib, d.exercises.map((x) => x.key));
+  libraryPicker(`${ex.name} tauschen`, (it) => {
+    if (!it) return;
+    const cfg = fromLibrary(it, ex.cfg);
+    const hist = historyFor(S.sessions, cfg.key);
+    const sg = suggest(cfg, hist);
+    d.exercises[d.idx] = {
+      key: cfg.key, name: cfg.name, type: cfg.type, unit: cfg.unit, group: cfg.group, cfg, note: '', suggestion: sg,
+      last: hist[0] ? { date: hist[0].date, text: [describePerf(hist[0], cfg.type, cfg.unit), rirSummary(hist[0])].filter(Boolean).join(' · '), note: hist[0].note || '' } : null,
+      sets: Array.from({ length: cfg.sets }, () => ({ weight: sg.weight, reps: sg.reps, done: false })),
+    };
+    saveDraft(); closeSheet(); toast(`Getauscht: ${it.name}`); render();
+  }, [...alts, ...S.lib.filter((x) => !alts.includes(x) && x.key !== ex.key)]);
+}
+
+// ---------- Bibliothek (Seite) ----------
+function viewLibrary() {
+  if (!S.lib?.length) { ensureLib().then(() => { if (location.hash.startsWith('#/library')) render(); }); return '<div class="empty">Bibliothek wird geladen …</div>'; }
+  const muscles = [...new Set(S.lib.flatMap((x) => x.muscles))];
+  const m = S.libMuscle || '';
+  const q = (S.libQuery || '').toLowerCase();
+  const items = S.lib.filter((x) => (!m || x.muscles.includes(m)) && (!q || x.name.toLowerCase().includes(q)))
+    .sort((a, b) => (m ? a.muscles.indexOf(m) - b.muscles.indexOf(m) : 0));
+  const inPlan = new Set(S.plan?.days.flatMap((d) => d.exercises.map((e) => e.key)) || []);
+  return `<button class="btn ghost" style="justify-content:flex-start;width:auto" data-a="back">‹ Mehr</button>
+    <h1>Übungen</h1><p class="muted small">${S.lib.length} Übungen für dein Home-Gym. Antippen für Details oder zum Hinzufügen.</p>
+    <div class="form" style="margin:12px 0 10px"><input id="libsearch" placeholder="Übung suchen …" value="${esc(S.libQuery || '')}" autocomplete="off"></div>
+    <div class="chips" style="margin-bottom:12px"><button class="chip ${!m ? 'on' : ''}" data-a="libMuscle" data-m="">Alle</button>${muscles.map((x) => `<button class="chip ${m === x ? 'on' : ''}" data-a="libMuscle" data-m="${esc(x)}">${esc(x)}</button>`).join('')}</div>
+    <div class="list">${items.map((x) => `<button class="item" data-a="libItem" data-k="${esc(x.key)}"><div style="flex:1;min-width:0"><b>${esc(x.name)}</b>${inPlan.has(x.key) ? ' <span class="badge up" style="padding:2px 8px;font-size:11px">im Plan</span>' : ''}
+      <div class="muted small">${esc(x.muscles.join(' · '))} · ${esc(x.equipment)}</div></div><span class="chev"></span></button>`).join('') || '<div class="item muted small">Nichts gefunden.</div>'}</div>`;
+}
+
+function libItemSheet(key) {
+  const x = S.lib.find((y) => y.key === key);
+  if (!x) return;
+  const h = historyFor(S.sessions, key);
+  const days = S.plan?.days || [];
+  sheet(`<h3>${esc(x.name)}</h3>
+    <div class="card small"><div><b>Muskeln:</b> ${esc(x.muscles.join(', '))}</div><div><b>Equipment:</b> ${esc(x.equipment)}</div>
+      <div><b>Bereich:</b> ${x.repsMin}–${x.repsMax} ${x.unit === 'sec' ? 'Sekunden' : 'Wdh.'}${x.weight ? ` · Start ${fmtNum(x.weight)} kg` : ''}</div>
+      ${x.hint ? `<div class="muted" style="margin-top:6px">${esc(x.hint)}</div>` : ''}
+      ${h[0] ? `<div style="margin-top:6px"><b>Zuletzt:</b> ${esc(describePerf(h[0], x.type, x.unit))} · ${dateLong(h[0].date)}</div>` : ''}</div>
+    ${days.map((d) => `<button class="btn" data-s="add" data-d="${esc(d.id)}">Zu ${esc(d.name.split(' – ')[0])} hinzufügen</button>`).join('')}
+    ${h.length ? `<button class="btn ghost" data-s="hist">Verlauf ansehen</button>` : ''}`, {
+    add: async (b) => {
+      const de = dayEdits(b.dataset.d); de.add = [...new Set([...(de.add || []), key])];
+      await persistPlan(); closeSheet(); toast(`${x.name} hinzugefügt`); render(); backupSoon();
+    },
+    hist: () => { closeSheet(); go(`#/exercise/${encodeURIComponent(key)}`); },
+  });
+}
+
+// ---------- Gespeicherte Pläne ----------
+function archiveSection() {
+  const arch = S.planArchive || [];
+  return `<h2>Gespeicherte Pläne</h2>
+    <div class="list">${S.basePlan ? `<div class="item"><div style="flex:1"><b>${esc(S.basePlan.name)}</b> <span class="badge up" style="padding:2px 8px;font-size:11px">aktiv</span>
+      <div class="muted small">Version ${S.basePlan.version || 1}${Object.keys(S.edits || {}).length ? ' · mit deinen Anpassungen' : ''}</div></div></div>` : ''}
+    ${arch.map((a, i) => `<button class="item" data-a="archiveItem" data-i="${i}"><div style="flex:1"><b>${esc(a.name)}</b>
+      <div class="muted small">Version ${a.version || 1} · bis ${new Date(a.savedAt).toLocaleDateString('de-DE', { dateStyle: 'medium' })}</div></div><span class="chev"></span></button>`).join('')}
+    ${!arch.length ? '<div class="item muted small">Frühere Planstände erscheinen hier automatisch.</div>' : ''}</div>`;
+}
+
 // ---------- Leistungstests ----------
 function testsOverview() {
   const T = S.plan?.tests;
@@ -714,11 +903,13 @@ function viewSettings() {
   const p = S.plan;
   return `<h1>Mehr</h1>
     <h2>Trainingsplan</h2>
-    ${p ? `<div class="card"><b>${esc(p.name)}</b><div class="muted small">${p.days.length} Trainingstage</div></div>
+    ${p ? `<div class="card"><b>${esc(p.name)}</b><div class="muted small">${p.days.length} Trainingstage${Object.keys(S.edits || {}).length ? ' · mit deinen Anpassungen' : ''}</div></div>
       <div class="list">${p.days.map((d) => `<div class="item" style="display:block"><b>${esc(d.name)}</b><div class="muted small">${d.exercises.map((e) => `${esc(e.name)} ${e.sets}×${e.repsMin === e.repsMax ? e.repsMin : `${e.repsMin}–${e.repsMax}`}${e.unit === 'sec' ? ' s' : ''}`).join(' · ')}</div></div>`).join('')}</div>` : '<div class="card muted">Noch kein Plan geladen.</div>'}
+    <button class="btn" data-a="openLibrary">Übungsbibliothek</button>
     <button class="btn" data-a="loadMine">Meinen Plan neu laden</button>
     <button class="btn" data-a="importPlan">Plan-Datei importieren (JSON)</button>
     <button class="btn" data-a="loadExample">Beispielplan laden</button>
+    ${archiveSection()}
     <h2>Pausentimer</h2>
     <div class="card row"><div class="grow">Standard-Pause (wenn der Plan keine vorgibt):</div>
       <div class="row" style="gap:6px"><button class="btn" style="width:44px;min-height:44px" data-a="restDef" data-v="-15">−</button><b style="min-width:52px;text-align:center">${S.settings.restDefault} s</b><button class="btn" style="width:44px;min-height:44px" data-a="restDef" data-v="15">+</button></div></div>
@@ -776,10 +967,11 @@ async function readFile(input) {
 // Eigener Plan: wird automatisch aktualisiert, wenn plans/mein-plan.json eine höhere "version" hat
 const MY_PLAN = 'plans/mein-plan.json';
 async function autoUpdateMyPlan() {
-  if (!S.plan || !(S.plan.source === 'mine' || S.plan.name === 'Finaler 3er-Plan')) return;
+  const b = S.basePlan;
+  if (!b || !(b.source === 'mine' || (!b.source && b.name === 'Finaler 3er-Plan'))) return;
   try {
     const raw = await (await fetch(MY_PLAN, { cache: 'no-store' })).json();
-    if ((Number(raw.version) || 0) > (S.plan.version || 0)) await setPlan({ ...raw, source: 'mine' }, { quiet: true });
+    if ((Number(raw.version) || 0) > (b.version || 0)) await setPlan({ ...raw, source: 'mine' }, { quiet: true });
   } catch { /* offline – später erneut */ }
 }
 
@@ -787,8 +979,20 @@ async function setPlan(raw, opts = {}) {
   try {
     const plan = normalizePlan(raw);
     const hist = normalizeHistory(raw.history, plan);
-    S.plan = plan;
-    await db.setMeta('plan', S.plan);
+    // Bisherigen Plan ins Archiv legen (wenn sich Name oder Version ändern)
+    if (S.basePlan && (S.basePlan.name !== plan.name || (S.basePlan.version || 0) !== (plan.version || 0))) {
+      S.planArchive = [{ savedAt: Date.now(), name: S.basePlan.name, version: S.basePlan.version || 0, plan: S.basePlan, edits: S.edits }, ...(S.planArchive || [])].slice(0, 20);
+      await db.setMeta('planArchive', S.planArchive);
+    }
+    // Eigene Anpassungen behalten, soweit die Übungen im neuen Plan noch existieren
+    const keysByDay = Object.fromEntries(plan.days.map((d) => [d.id, new Set(d.exercises.map((e) => e.key))]));
+    const kept = {};
+    for (const [dayId, e] of Object.entries(raw.edits || S.edits || {})) {
+      if (!keysByDay[dayId]) continue;
+      kept[dayId] = { replace: Object.fromEntries(Object.entries(e.replace || {}).filter(([k]) => keysByDay[dayId].has(k))), remove: (e.remove || []).filter((k) => keysByDay[dayId].has(k)), add: e.add || [] };
+    }
+    S.basePlan = plan; S.edits = kept;
+    await persistPlan();
     let added = 0;
     for (const h of hist) {
       const old = S.sessions.find((x) => x.id === h.id);
@@ -827,6 +1031,19 @@ const actions = {
   },
   pickDay: (a) => { S.pickDay = a.dataset.id; render(); },
   selDay: (a) => { S.selDate = +a.dataset.t; render(); },
+  customize: (a) => customizeDay(a.dataset.id, +a.dataset.t),
+  openLibrary: async () => { await ensureLib(); go('#/library'); },
+  libMuscle: (a) => { S.libMuscle = a.dataset.m; render(); },
+  libItem: (a) => libItemSheet(a.dataset.k),
+  archiveItem: (a) => {
+    const it = S.planArchive[+a.dataset.i];
+    sheet(`<h3>${esc(it.name)} · Version ${it.version || 1}</h3>
+      <div class="list sheetlist">${it.plan.days.map((d) => `<div class="item" style="display:block"><b>${esc(d.name)}</b><div class="muted small">${d.exercises.map((e) => esc(e.name)).join(' · ')}</div></div>`).join('')}</div>
+      <button class="btn primary" data-s="act">Diesen Plan aktivieren</button><button class="btn ghost" data-s="x">Abbrechen</button>`, {
+      act: async () => { closeSheet(); await setPlan({ ...it.plan, source: 'archive', edits: it.edits || {} }); },
+      x: closeSheet,
+    });
+  },
   calDay: (a) => { S.selDate = +a.dataset.t; S.calOffset = 0; go('#/'); },
   calMonth: (a) => { S.calOffset = Math.min(1, (S.calOffset || 0) + +a.dataset.v); render(); },
   cdStart: () => { const d = S.testDraft, t = S.plan.tests.items[d.idx]; unlockAudio(); d.cd = { running: true, endsAt: Date.now() + t.seconds * 1000 }; saveTestDraft(); render(); },
@@ -947,10 +1164,12 @@ const actions = {
   note: () => { const ex = S.draft.exercises[S.draft.idx]; noteSheet(`Notiz: ${ex.name}`, ex.note, (v) => { ex.note = v; saveDraft(); render(); }); },
   overview: overviewSheet,
   trainMenu: () => sheet(`<h3>Training</h3>
+    <button class="btn" data-s="swap">Diese Übung tauschen</button>
     <button class="btn" data-s="pause">Pausieren (später weitermachen)</button>
     <button class="btn" data-s="finish">Jetzt beenden & speichern</button>
     <button class="btn danger" data-s="discard">Training verwerfen</button>
     <button class="btn ghost" data-s="close">Abbrechen</button>`, {
+    swap: () => { closeSheet(); swapInTraining(); },
     pause: () => { closeSheet(); keepAwake(false); go('#/'); },
     finish: () => { closeSheet(); go('#/done'); },
     discard: () => confirmSheet('Training verwerfen?', 'Alle Einträge dieses Trainings gehen verloren.', 'Verwerfen', async () => {
@@ -1033,6 +1252,11 @@ const actions = {
   }),
 };
 
+$app.addEventListener('input', (e) => {
+  if (e.target.id !== 'libsearch') return;
+  S.libQuery = e.target.value; const pos = e.target.selectionStart; render();
+  const el = document.getElementById('libsearch'); el.focus(); el.setSelectionRange(pos, pos);
+});
 $app.addEventListener('click', (e) => {
   const a = e.target.closest('[data-a]');
   if (a && actions[a.dataset.a] && !a.disabled) { e.preventDefault(); actions[a.dataset.a](a); }

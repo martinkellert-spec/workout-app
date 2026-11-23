@@ -24,6 +24,27 @@ export function inferWeekday(d) {
   return null;
 }
 
+/** Eine Übung aus Plan/Bibliothek in das App-Format bringen */
+export function normalizeExercise(e) {
+  const repsMin = Number(e.repsMin ?? e.reps ?? 8);
+  const repsMax = Number(e.repsMax ?? e.reps ?? repsMin);
+  return {
+    key: slug(e.name),
+    name: String(e.name),
+    type: e.type === 'bodyweight' ? 'bodyweight' : 'weight',
+    sets: Number(e.sets ?? 3),
+    repsMin: Math.min(repsMin, repsMax),
+    repsMax: Math.max(repsMin, repsMax),
+    weight: Number(e.weight ?? 0),
+    increment: Number(e.increment ?? 2.5),
+    rest: e.rest == null ? null : Number(e.rest), // null = Standard-Pause, 0 = direkt weiter
+    unit: e.unit === 'sec' ? 'sec' : 'reps',
+    weights: Array.isArray(e.weights) ? [...e.weights].map(Number).sort((a, b) => a - b) : null,
+    group: e.group ? String(e.group) : '',
+    hint: e.hint ? String(e.hint) : '',
+  };
+}
+
 export function normalizePlan(raw) {
   if (!raw || typeof raw !== 'object') throw new Error('Datei enthält kein gültiges JSON-Objekt.');
   if (!Array.isArray(raw.days) || raw.days.length === 0) throw new Error('Plan braucht mindestens einen Eintrag in "days".');
@@ -56,23 +77,7 @@ export function normalizePlan(raw) {
         weekday: inferWeekday(d),
         exercises: d.exercises.map((e, j) => {
           if (!e.name) throw new Error(`Übung ${j + 1} an Tag ${i + 1} hat keinen Namen.`);
-          const repsMin = Number(e.repsMin ?? e.reps ?? 8);
-          const repsMax = Number(e.repsMax ?? e.reps ?? repsMin);
-          return {
-            key: slug(e.name),
-            name: String(e.name),
-            type: e.type === 'bodyweight' ? 'bodyweight' : 'weight',
-            sets: Number(e.sets ?? 3),
-            repsMin: Math.min(repsMin, repsMax),
-            repsMax: Math.max(repsMin, repsMax),
-            weight: Number(e.weight ?? 0),
-            increment: Number(e.increment ?? 2.5),
-            rest: e.rest == null ? null : Number(e.rest), // null = Standard-Pause, 0 = direkt weiter
-            unit: e.unit === 'sec' ? 'sec' : 'reps',
-            weights: Array.isArray(e.weights) ? [...e.weights].map(Number).sort((a, b) => a - b) : null,
-            group: e.group ? String(e.group) : '',
-            hint: e.hint ? String(e.hint) : '',
-          };
+          return normalizeExercise(e);
         }),
       };
     }),
@@ -444,4 +449,45 @@ export function parseWarmup(note) {
   const body = i > 0 ? text.slice(i + 1) : text;
   const items = body.split(/\s*(?:,|\s\/\s|;)\s*/).map((x) => x.trim()).filter(Boolean).map((x) => x[0].toUpperCase() + x.slice(1));
   return { duration: head, items };
+}
+
+// ---------- Bibliothek & Plan-Anpassungen ----------
+/** Bibliothek normalisieren: jede Übung bekommt key, muscles, patterns, equipment */
+export function normalizeLibrary(raw) {
+  return (raw?.exercises || []).map((x) => ({ ...normalizeExercise(x), muscles: x.muscles || [], patterns: x.patterns || [], equipment: x.equipment || '' }));
+}
+
+/** Übung aus der Bibliothek an die Stelle einer Plan-Übung setzen (Sätze, Gruppe und Pause bleiben) */
+export function fromLibrary(item, base = {}) {
+  return { ...item, sets: base.sets ?? 3, group: base.group || '', rest: base.rest ?? null, swappedFrom: base.key || '' };
+}
+
+/**
+ * Anpassungen auf einen Plan anwenden.
+ * edits: { [dayId]: { replace: { [origKey]: libKey }, remove: [origKey], add: [libKey] } }
+ */
+export function applyEdits(plan, edits, lib) {
+  if (!plan) return plan;
+  const byKey = new Map((lib || []).map((x) => [x.key, x]));
+  return {
+    ...plan,
+    days: plan.days.map((d) => {
+      const e = edits?.[d.id];
+      if (!e) return d;
+      let ex = d.exercises
+        .filter((x) => !(e.remove || []).includes(x.key))
+        .map((x) => { const r = e.replace?.[x.key]; return r && byKey.has(r) ? fromLibrary(byKey.get(r), x) : x; });
+      for (const k of e.add || []) if (byKey.has(k)) ex = ex.concat(fromLibrary(byKey.get(k), { sets: 3 }));
+      return { ...d, exercises: ex, edited: true };
+    }),
+  };
+}
+
+/** Passende Alternativen: gleiches Bewegungsmuster zuerst, dann gleiche Muskelgruppe */
+export function alternativesFor(exKey, lib, exclude = []) {
+  const me = lib.find((x) => x.key === exKey);
+  if (!me) return lib.filter((x) => !exclude.includes(x.key)).slice(0, 12);
+  const score = (x) => (x.patterns.some((p) => me.patterns.includes(p)) ? 2 : 0) + (x.muscles.some((m) => me.muscles.includes(m)) ? 1 : 0);
+  return lib.filter((x) => x.key !== exKey && !exclude.includes(x.key) && score(x) > 0)
+    .sort((a, b) => score(b) - score(a) || a.name.localeCompare(b.name, 'de'));
 }

@@ -1,6 +1,6 @@
 {
  "name": "Finaler 3er-Plan",
- "version": 3,
+ "version": 4,
  "tests": {
   "everyWeeks": 6,
   "items": [
@@ -185,7 +185,7 @@
       16
      ],
      "rest": 75,
-     "hint": "Schultern auf Sofa/Bank, Gewicht auf der Hüfte, oben 1 Sek. halten – Po anspannen, kein Hohlkreuz. Zu leicht? Einbeinig."
+     "hint": "Auf dem Boden: Rücken liegt, Füße aufgestellt, Gewicht auf der Hüfte – Becken nach oben drücken, oben 1 Sek. halten"
     },
     {
      "name": "DB Curls",
@@ -198,7 +198,7 @@
       12.5,
       15
      ],
-     "group": "Arme",
+     "group": "Arme A",
      "rest": 0,
      "hint": "Gewicht pro Kurzhantel"
     },
@@ -215,9 +215,34 @@
       15,
       16
      ],
-     "group": "Arme",
-     "rest": 60,
-     "hint": "Eine Kettlebell/Kurzhantel mit beiden Händen hinter dem Kopf, Ellbogen eng"
+     "group": "Arme A",
+     "rest": 45,
+     "hint": "Ein Gewicht mit beiden Händen hinter dem Kopf, Ellbogen eng"
+    },
+    {
+     "name": "Hammer Curls",
+     "sets": 2,
+     "repsMin": 10,
+     "repsMax": 15,
+     "weight": 7.5,
+     "weights": [
+      7.5,
+      12.5,
+      15
+     ],
+     "group": "Arme B",
+     "rest": 0,
+     "hint": "Neutraler Griff (Daumen oben) · Gewicht pro Kurzhantel"
+    },
+    {
+     "name": "Enge Push-ups",
+     "type": "bodyweight",
+     "sets": 2,
+     "repsMin": 10,
+     "repsMax": 15,
+     "group": "Arme B",
+     "rest": 45,
+     "hint": "Ellbogen eng am Körper – Trizeps"
     },
     {
      "name": "Windshield Wipers",

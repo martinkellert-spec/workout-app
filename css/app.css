@@ -393,3 +393,8 @@ details.sec[open] summary .chev::after { transform: rotate(-45deg); margin-top: 
 }
 details.sec summary .sumx { margin-left: auto; margin-right: 12px; font-size: 14px; font-weight: 500; color: var(--muted); letter-spacing: 0; }
 details.sec .blk .exl { padding: 5px 0; }
+.sheet { max-height: 88vh; overflow-y: auto; }
+.sheetlist { max-height: 52vh; overflow-y: auto; }
+.swapico { color: var(--green); font-size: 18px; font-weight: 600; }
+.sheet .chips .chip { background: var(--surface); }
+.sheet .chips .chip.on { background: var(--text); color: var(--bg); }
