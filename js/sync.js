@@ -123,3 +123,16 @@ export function autoRetry() {
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') retry(); });
   retry();
 }
+
+/** Neuestes Claude-Wochenreview aus dem Repo laden (reviews/latest.json). null, wenn keins da ist. */
+export async function fetchReview() {
+  const c = await getConfig();
+  if (!c || !navigator.onLine) return null;
+  const url = `${API}/repos/${encodeURIComponent(c.owner)}/${encodeURIComponent(c.repo)}/contents/reviews/latest.json`;
+  try {
+    const res = await fetch(url, { headers: headers(c.token, true), cache: 'no-store' });
+    if (!res.ok) return null;
+    const r = await res.json();
+    return r && r.text ? { title: r.title || '', date: r.date || '', summary: r.summary || '', text: r.text, fetchedAt: Date.now() } : null;
+  } catch { return null; }
+}

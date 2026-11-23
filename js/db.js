@@ -39,7 +39,7 @@ export const putSession = (session) => tx('sessions', 'readwrite', (s) => s.put(
 export const deleteSession = (id) => tx('sessions', 'readwrite', (s) => s.delete(id));
 
 // Diese Einträge bleiben nur auf dem Gerät: nie in ein Backup, nie überschrieben beim Wiederherstellen (enthält den GitHub-Token)
-const LOCAL_ONLY = ['sync'];
+const LOCAL_ONLY = ['sync', 'review'];
 
 export async function exportAll() {
   const metaKeys = await tx('meta', 'readonly', (s) => s.getAllKeys());

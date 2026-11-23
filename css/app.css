@@ -258,3 +258,40 @@ body:has(#app.no-tabs) .toast { bottom: calc(env(safe-area-inset-bottom) + 96px)
 .grp { display: inline-block; min-width: 22px; font-size: 10.5px; font-weight: 600; color: var(--faint); margin-right: 6px; letter-spacing: .02em; }
 .crumb { max-width: 62%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 #panel { scroll-margin-bottom: calc(env(safe-area-inset-bottom) + 100px); }
+
+/* Startbildschirm: Woche */
+.week-card { padding: 14px 8px 10px; margin-top: 14px; }
+.weekstrip button { display: flex; flex-direction: column; align-items: center; font-size: 11px; font-weight: 500; color: var(--muted); letter-spacing: .02em; padding: 0; }
+.weekstrip b { transition: background .15s, color .15s; }
+.weekstrip b.sel { background: var(--text); color: var(--bg); }
+.weekstrip b.sel.done { background: var(--accent); color: var(--accent-text); box-shadow: 0 0 0 2px var(--surface), 0 0 0 3.5px var(--accent); }
+.weekstrip b.today:not(.done):not(.sel) { box-shadow: inset 0 0 0 1.5px var(--green); color: var(--green); }
+.weekstrip i { width: 5px; height: 5px; border-radius: 50%; margin-top: 6px; background: transparent; }
+.weekstrip i.p { background: var(--faint); }
+.weekstrip i.d { background: var(--green); }
+.hero.done-card { display: block; }
+.donerow { display: flex; align-items: center; gap: 14px; color: var(--muted); font-size: 14px; font-weight: 500; font-variant-numeric: tabular-nums; }
+.rest-card .day { color: var(--muted); font-weight: 600; margin-bottom: 2px; }
+.insights .item { align-items: flex-start; }
+.dot { width: 8px; height: 8px; border-radius: 50%; margin-top: 6px; flex: none; background: var(--faint); }
+.dot.warn { background: var(--warn); }
+.dot.good { background: var(--green); }
+
+/* RPE */
+.rpe { padding: 12px; }
+.rpegrid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
+.rpegrid button { height: 44px; border-radius: 12px; background: var(--surface-2); font-size: 17px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.rpegrid button.on { background: var(--accent); color: var(--accent-text); }
+.rpetext { text-align: center; font-size: 13px; color: var(--muted); margin-top: 10px; font-weight: 500; }
+
+/* Tests */
+.watch { text-align: center; padding: 22px 16px 14px; }
+.watchtime { font-size: 64px; line-height: 1; letter-spacing: -.03em; }
+.steps { margin: 8px 0 0; padding-left: 20px; font-size: 14px; color: var(--muted); }
+.steps li { margin: 2px 0; }
+
+/* Review */
+.md h3 { font-size: 16px; font-weight: 600; margin: 14px 0 6px; letter-spacing: -.015em; }
+.md h3:first-child { margin-top: 0; }
+.md p { font-size: 15px; line-height: 1.5; }
+.md ul { margin: 4px 0 10px; padding-left: 20px; font-size: 15px; line-height: 1.5; }

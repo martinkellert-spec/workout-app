@@ -12,11 +12,35 @@ export const epley = (w, r) => (r <= 0 ? 0 : r === 1 ? w : w * (1 + r / 30));
 const doneSets = (perf) => (perf?.sets || []).filter((s) => s.done);
 
 /** Plan-JSON prüfen und normalisieren. Wirft Error mit verständlicher Meldung. */
+const WD = [['mo', 'montag'], ['di', 'dienstag'], ['mi', 'mittwoch'], ['do', 'donnerstag'], ['fr', 'freitag'], ['sa', 'samstag'], ['so', 'sonntag']];
+/** Wochentag 1–7 (Mo–So) aus "weekday", der id oder dem ersten Wort des Namens ("Montag – …") ableiten */
+export function inferWeekday(d) {
+  if (Number(d.weekday) >= 1 && Number(d.weekday) <= 7) return Number(d.weekday);
+  for (const src of [d.id, d.name]) {
+    const word = String(src || '').trim().toLowerCase().split(/[^a-zäöüß]+/)[0];
+    const i = WD.findIndex((w) => w.includes(word));
+    if (word && i >= 0) return i + 1;
+  }
+  return null;
+}
+
 export function normalizePlan(raw) {
   if (!raw || typeof raw !== 'object') throw new Error('Datei enthält kein gültiges JSON-Objekt.');
   if (!Array.isArray(raw.days) || raw.days.length === 0) throw new Error('Plan braucht mindestens einen Eintrag in "days".');
+  const t = raw.tests;
   return {
     name: String(raw.name || 'Mein Plan'),
+    tests: t && Array.isArray(t.items) && t.items.length ? {
+      everyWeeks: Number(t.everyWeeks) || 6,
+      items: t.items.map((x, i) => ({
+        id: String(x.id || slug(x.name || `test-${i}`)),
+        name: String(x.name || `Test ${i + 1}`),
+        type: x.type === 'time' ? 'time' : 'reps',
+        lowerIsBetter: x.type === 'time' ? x.lowerIsBetter !== false : !!x.lowerIsBetter,
+        hint: x.hint ? String(x.hint) : '',
+        steps: Array.isArray(x.steps) ? x.steps.map(String) : [],
+      })),
+    } : null,
     days: raw.days.map((d, i) => {
       if (!Array.isArray(d.exercises) || d.exercises.length === 0)
         throw new Error(`Tag ${i + 1} hat keine Übungen.`);
@@ -24,6 +48,7 @@ export function normalizePlan(raw) {
         id: String(d.id ?? String.fromCharCode(65 + i)),
         name: String(d.name || `Tag ${String.fromCharCode(65 + i)}`),
         note: d.note ? String(d.note) : '',
+        weekday: inferWeekday(d),
         exercises: d.exercises.map((e, j) => {
           if (!e.name) throw new Error(`Übung ${j + 1} an Tag ${i + 1} hat keinen Namen.`);
           const repsMin = Number(e.repsMin ?? e.reps ?? 8);
@@ -184,7 +209,7 @@ export function volume(session) {
 
 /** Nächster Trainingstag in der Rotation */
 export function nextDay(plan, sessions) {
-  const done = sessions.filter((s) => s.endedAt && s.planName === plan.name).sort((a, b) => b.startedAt - a.startedAt);
+  const done = sessions.filter((s) => s.endedAt && s.kind !== 'test' && s.planName === plan.name).sort((a, b) => b.startedAt - a.startedAt);
   if (!done.length) return plan.days[0];
   const idx = plan.days.findIndex((d) => d.id === done[0].dayId);
   return plan.days[(idx + 1) % plan.days.length] || plan.days[0];
@@ -242,7 +267,7 @@ export function normalizeHistory(raw, plan) {
       startedAt: start,
       endedAt: start + (Number(h.durationMin) || 45) * 60000,
       planName: plan.name, dayId: h.dayId || '', dayName: day?.name || h.dayName || 'Training',
-      feeling: h.feeling ?? null, note: h.note || '', imported: true,
+      feeling: h.feeling ?? null, rpe: h.rpe ?? null, note: h.note || '', imported: true,
       exercises: (h.exercises || []).map((e) => {
         const key = slug(e.name), cfg = cfgByKey.get(key);
         return {
@@ -278,4 +303,98 @@ export function supersetNext(exercises, idx) {
   if (behind != null) return behind;
   if (exercises[idx].sets.some((s) => !s.done)) return order.length && exercises[members[0]].sets.some((s) => !s.done) && members[0] !== idx ? members[0] : idx;
   return order.find((i) => exercises[i].sets.some((s) => !s.done)) ?? idx;
+}
+
+// ---------- Tagesplanung ----------
+export const sameDay = (a, b) => new Date(a).toDateString() === new Date(b).toDateString();
+/** Plan-Tag für ein Datum (über den Wochentag), sonst null */
+export function planDayFor(plan, ts) {
+  const wd = ((new Date(ts).getDay() + 6) % 7) + 1;
+  return plan?.days.find((d) => d.weekday === wd) || null;
+}
+
+// ---------- Leistungstests ----------
+const WEEK = 7 * 864e5;
+/** Status der Tests: fällig? Basistest, wenn noch keiner gemacht wurde. */
+export function testStatus(plan, sessions, now = Date.now()) {
+  if (!plan?.tests) return null;
+  const tests = sessions.filter((s) => s.kind === 'test' && s.endedAt).sort((a, b) => b.startedAt - a.startedAt);
+  const last = tests[0] || null;
+  if (!last) return { due: true, baseline: true, dueAt: now, last: null, weeksLeft: 0 };
+  const dueAt = last.startedAt + plan.tests.everyWeeks * WEEK;
+  return { due: now >= dueAt, baseline: false, dueAt, last, weeksLeft: Math.max(0, Math.ceil((dueAt - now) / WEEK)) };
+}
+
+/** Alle Ergebnisse eines Tests, neueste zuerst */
+export function testHistory(sessions, testId) {
+  return sessions.filter((s) => s.kind === 'test' && s.endedAt)
+    .sort((a, b) => b.startedAt - a.startedAt)
+    .map((s) => { const r = (s.results || []).find((x) => x.id === testId); return r && r.value != null ? { date: s.startedAt, value: r.value } : null; })
+    .filter(Boolean);
+}
+
+export const fmtTime = (sec) => `${Math.floor(sec / 60)}:${String(Math.round(sec % 60)).padStart(2, '0')}`;
+export const fmtTestValue = (t, v) => (v == null ? '–' : t.type === 'time' ? fmtTime(v) : `${v} Wdh.`);
+
+/** Veränderung gegenüber dem vorigen Test: { text, better } oder null */
+export function testDelta(t, hist) {
+  if (hist.length < 2) return null;
+  const d = hist[0].value - hist[1].value;
+  if (d === 0) return { text: '±0', better: null };
+  const better = t.lowerIsBetter ? d < 0 : d > 0;
+  const abs = Math.abs(d);
+  return { text: `${d > 0 ? '+' : '−'}${t.type === 'time' ? fmtTime(abs) : abs}`, better };
+}
+
+// ---------- Auswertung (Hinweise) ----------
+const avg = (a) => a.reduce((x, y) => x + y, 0) / a.length;
+const numRirs = (perf) => doneSets(perf).map((x) => x.rir).filter((r) => typeof r === 'number');
+
+/** Regelbasierte Hinweise aus den Trainings. level: warn | good | info */
+export function insights(plan, sessions, now = Date.now()) {
+  const out = [];
+  const tr = sessions.filter((s) => s.endedAt && s.kind !== 'test').sort((a, b) => b.startedAt - a.startedAt);
+
+  // 1) Belastung: RPE
+  const rpes = tr.map((s) => s.rpe).filter((r) => typeof r === 'number');
+  if (rpes.slice(0, 3).filter((r) => r >= 9).length >= 2) {
+    out.push({ level: 'warn', text: 'Die letzten Einheiten waren sehr hart (RPE 9+). Eine leichtere Woche würde der Erholung guttun.' });
+  } else if (rpes.length >= 6 && avg(rpes.slice(0, 3)) - avg(rpes.slice(3, 6)) >= 1.5) {
+    out.push({ level: 'warn', text: `Die Sessions fühlen sich härter an (RPE Ø ${fmtNum(Math.round(avg(rpes.slice(0, 3)) * 10) / 10)} statt ${fmtNum(Math.round(avg(rpes.slice(3, 6)) * 10) / 10)}). Schlaf und Erholung im Blick behalten.` });
+  }
+
+  // 2) Pro Übung: am Limit, zu leicht, stagniert
+  const keys = [...new Set(tr.flatMap((s) => s.exercises.map((e) => e.key)))];
+  const limit = [], easy = [], stuck = [];
+  for (const key of keys) {
+    const h = historyFor(tr, key);
+    if (!h.length) continue;
+    const name = tr.find((s) => s.exercises.some((e) => e.key === key)).exercises.find((e) => e.key === key).name;
+    const r0 = numRirs(h[0]);
+    if (r0.length >= 2 && r0.every((r) => r === 0)) limit.push(name);
+    else if (h.length >= 2 && [h[0], h[1]].every((p) => { const r = numRirs(p); return r.length && avg(r) >= 3; })) easy.push(name);
+    if (h.length >= 4) {
+      const score = (p) => Math.max(...doneSets(p).map((x) => (x.weight > 0 ? epley(x.weight, x.reps) : x.reps)));
+      const recent = Math.max(...h.slice(0, 3).map(score));
+      const before = Math.max(...h.slice(3).map(score));
+      if (recent <= before) stuck.push(name);
+    }
+  }
+  const list = (n) => (n.length <= 3 ? n.join(', ') : `${n.slice(0, 3).join(', ')} und ${n.length - 3} weitere`);
+  if (limit.length === 1) out.push({ level: 'warn', text: `${limit[0]}: alle Sätze am Limit (RIR 0). Gewicht halten, bis wieder Luft da ist.` });
+  else if (limit.length > 1) out.push({ level: 'warn', text: `${limit.length} Übungen zuletzt komplett am Limit (RIR 0): ${list(limit)}. Gewichte halten, bis wieder Luft da ist.` });
+  if (easy.length === 1) out.push({ level: 'good', text: `${easy[0]} ging zweimal locker (RIR 3+). Mehr Gewicht oder Wiederholungen ist drin.` });
+  else if (easy.length > 1) out.push({ level: 'good', text: `Zweimal locker (RIR 3+): ${list(easy)}. Hier ist mehr drin.` });
+  if (stuck.length === 1) out.push({ level: 'info', text: `${stuck[0]} stagniert seit 3 Einheiten. Tempo, Pausen oder Variante ändern?` });
+  else if (stuck.length > 1) out.push({ level: 'info', text: `Stagniert seit 3 Einheiten: ${list(stuck)}. Tempo, Pausen oder Variante ändern?` });
+
+  // 3) Regelmäßigkeit diese Woche
+  if (plan) {
+    const ws = weekStart(now);
+    const planned = plan.days.filter((d) => d.weekday).map((d) => ws + (d.weekday - 1) * 864e5).filter((t) => t <= now && !sameDay(t, now));
+    const missed = planned.filter((t) => !tr.some((s) => sameDay(s.startedAt, t)));
+    if (missed.length) out.push({ level: 'info', text: `Diese Woche ${missed.length === 1 ? 'fehlt 1 geplante Einheit' : `fehlen ${missed.length} geplante Einheiten`}. Nachholen oder bewusst auslassen?` });
+  }
+  const order = { warn: 0, good: 1, info: 2 };
+  return out.sort((a, b) => order[a.level] - order[b.level]).slice(0, 4);
 }

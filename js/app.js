@@ -3,22 +3,24 @@ import * as sync from './sync.js';
 import {
   normalizePlan, normalizeHistory, historyFor, suggest, describePerf, records, newRecords, volume, nextDay,
   weekStart, weeklyStats, streak, fmtNum, fmtDuration, epley, topWeight, unitLabel, nextOpen, supersetNext,
-  nextWeight, prevWeight, rirSummary, fmtRir,
+  nextWeight, prevWeight, rirSummary, fmtRir, planDayFor, sameDay, testStatus, testHistory, testDelta,
+  fmtTestValue, fmtTime, insights,
 } from './logic.js';
 import { lineChart, barChart } from './charts.js';
 
-export const APP_VERSION = '2.0.0';
+export const APP_VERSION = '2.1.1';
 
 const $app = document.getElementById('app');
 const $tabbar = document.getElementById('tabbar');
-const S = { plan: null, sessions: [], draft: null, settings: { restDefault: 90 }, pickDay: null, histTab: 'sessions' };
+const S = { selDate: null, review: null, testDraft: null, plan: null, sessions: [], draft: null, settings: { restDefault: 90 }, pickDay: null, histTab: 'sessions' };
 
 const val = (id) => document.getElementById(id)?.value || '';
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const go = (hash) => { if (location.hash === hash) render(); else location.hash = hash; };
 const dateLong = (ts) => new Date(ts).toLocaleDateString('de-DE', { weekday: 'short', day: 'numeric', month: 'short' });
 const kg = (w, type) => (type === 'bodyweight' && !w ? 'Körpergew.' : `${fmtNum(w)} kg`);
-const done = () => S.sessions.filter((s) => s.endedAt);
+const done = () => S.sessions.filter((s) => s.endedAt && s.kind !== 'test');
+const RPE_TEXT = ['', 'sehr leicht', 'leicht', 'leicht', 'moderat', 'moderat', 'fordernd', 'hart', 'sehr hart', 'extrem hart', 'Maximum'];
 
 function toast(msg) {
   document.querySelector('.toast')?.remove();
@@ -85,6 +87,8 @@ async function load() {
   [S.plan, S.sessions, S.draft] = await Promise.all([db.getMeta('plan'), db.allSessions(), db.getMeta('draft')]);
   S.settings = { ...S.settings, ...((await db.getMeta('settings')) || {}) };
   S.sync = await sync.getConfig();
+  S.review = (await db.getMeta('review')) || null;
+  S.testDraft = (await db.getMeta('testDraft')) || null;
 }
 const saveDraft = () => db.setMeta('draft', S.draft);
 
@@ -96,10 +100,10 @@ const TABS = [
   ['#/settings', 'Mehr', '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 00.3 1.8l.1.1a2 2 0 11-2.8 2.8l-.1-.1a1.7 1.7 0 00-1.8-.3 1.7 1.7 0 00-1 1.5V21a2 2 0 11-4 0v-.1a1.7 1.7 0 00-1.1-1.5 1.7 1.7 0 00-1.8.3l-.1.1a2 2 0 11-2.8-2.8l.1-.1a1.7 1.7 0 00.3-1.8 1.7 1.7 0 00-1.5-1H3a2 2 0 110-4h.1a1.7 1.7 0 001.5-1.1 1.7 1.7 0 00-.3-1.8l-.1-.1a2 2 0 112.8-2.8l.1.1a1.7 1.7 0 001.8.3H9a1.7 1.7 0 001-1.5V3a2 2 0 114 0v.1a1.7 1.7 0 001 1.5 1.7 1.7 0 001.8-.3l.1-.1a2 2 0 112.8 2.8l-.1.1a1.7 1.7 0 00-.3 1.8V9a1.7 1.7 0 001.5 1H21a2 2 0 110 4h-.1a1.7 1.7 0 00-1.5 1z"/>'],
 ];
 function renderTabbar(route) {
-  const hidden = route === 'train' || route === 'done';
+  const hidden = route === 'train' || route === 'done' || route === 'test';
   $tabbar.classList.toggle('hidden', hidden);
   $app.classList.toggle('no-tabs', hidden);
-  const base = { '': '#/', history: '#/history', session: '#/history', exercise: '#/history', week: '#/week', settings: '#/settings' }[route] || '#/';
+  const base = { '': '#/', history: '#/history', session: '#/history', exercise: '#/history', testinfo: '#/history', week: '#/week', settings: '#/settings' }[route] || '#/';
   $tabbar.innerHTML = TABS.map(([h, label, icon]) =>
     `<a href="${h}" class="${h === base ? 'active' : ''}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${icon}</svg>${label}</a>`).join('');
 }
@@ -108,7 +112,7 @@ function render() {
   const [route, arg] = location.hash.replace(/^#\/?/, '').split('/');
   if ((route === 'train' || route === 'done') && !S.draft) return go('#/');
   renderTabbar(route);
-  const views = { '': viewStart, train: viewTrain, done: viewDone, history: viewHistory, session: viewSession, exercise: viewExercise, week: viewWeek, settings: viewSettings };
+  const views = { '': viewStart, train: viewTrain, done: viewDone, history: viewHistory, session: viewSession, exercise: viewExercise, week: viewWeek, settings: viewSettings, test: viewTest, testinfo: viewTestInfo, review: viewReview };
   $app.innerHTML = (views[route] || viewStart)(decodeURIComponent(arg || ''));
   if (route !== 'train') window.scrollTo(0, 0);
   tick();
@@ -116,14 +120,23 @@ function render() {
 window.addEventListener('hashchange', render);
 
 // ---------- Start ----------
-function weekStrip() {
+const DAY_SHORT = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
+const dayStart = (ts) => { const d = new Date(ts); d.setHours(0, 0, 0, 0); return d.getTime(); };
+const relDay = (ts) => {
+  const diff = Math.round((dayStart(ts) - dayStart(Date.now())) / 864e5);
+  return diff === 0 ? 'Heute' : diff === 1 ? 'Morgen' : diff === -1 ? 'Gestern'
+    : new Date(ts).toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long' });
+};
+
+function weekStrip(sel) {
   const ws = weekStart(Date.now());
-  const days = new Set(done().map((s) => new Date(s.startedAt).toDateString()));
-  const today = new Date().toDateString();
-  return `<div class="weekstrip">${['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'].map((l, i) => {
+  return `<div class="weekstrip">${DAY_SHORT.map((l, i) => {
     const d = new Date(ws); d.setDate(d.getDate() + i);
-    const ds = d.toDateString();
-    return `<div>${l}<b class="${days.has(ds) ? 'done' : ''} ${ds === today ? 'today' : ''}">${d.getDate()}</b></div>`;
+    const t = d.getTime();
+    const isDone = S.sessions.some((x) => x.endedAt && sameDay(x.startedAt, t));
+    const planned = !!planDayFor(S.plan, t);
+    const cls = [isDone ? 'done' : '', sameDay(t, Date.now()) ? 'today' : '', sel && sameDay(t, sel) ? 'sel' : ''].join(' ');
+    return `<button data-a="selDay" data-t="${t}">${l}<b class="${cls}">${d.getDate()}</b><i class="${planned || isDone ? 'p' : ''} ${isDone ? 'd' : ''}"></i></button>`;
   }).join('')}</div>`;
 }
 
@@ -134,9 +147,44 @@ function planPreview(day) {
   }).join('');
 }
 
+function dayCard(sel) {
+  const thatDay = S.sessions.filter((x) => x.endedAt && sameDay(x.startedAt, sel));
+  const label = relDay(sel);
+  if (thatDay.length) {
+    return thatDay.map((x) => `<a class="hero done-card" href="#/${x.kind === 'test' ? 'testinfo' : 'session'}/${x.id}">
+      <div class="label">${esc(label)} · erledigt ✓</div>
+      <div class="day">${esc(x.dayName)}</div>
+      <div class="donerow"><span>${fmtDuration(x.endedAt - x.startedAt)}</span>${x.kind === 'test' ? `<span>${(x.results || []).filter((r) => r.value != null).length} Tests</span>` : `<span>${fmtNum(Math.round(volume(x)))} kg</span>`}${x.rpe ? `<span>RPE ${x.rpe}</span>` : ''}<span class="chev" style="margin-left:auto"></span></div></a>`).join('');
+  }
+  const day = planDayFor(S.plan, sel);
+  if (!day) {
+    return `<div class="hero rest-card"><div class="label" style="color:var(--muted)">${esc(label)}</div><div class="day">Kein Training</div>
+      <button class="textlink" style="margin:4px 0 0" data-a="pickOther">Trotzdem trainieren</button></div>`;
+  }
+  const past = dayStart(sel) < dayStart(Date.now());
+  return `<div class="hero"><div class="label">${esc(label)}${past ? ' · verpasst' : ''}</div>
+    <div class="day">${esc(day.name)}</div>
+    ${day.note ? `<p class="muted small">${esc(day.note)}</p>` : ''}
+    <ul>${planPreview(day)}</ul>
+    <button class="btn primary big" data-a="start" data-id="${esc(day.id)}">${past ? 'Jetzt nachholen' : 'Training starten'}</button></div>`;
+}
+
+function insightsBlock() {
+  const items = insights(S.plan, S.sessions);
+  const ts = testStatus(S.plan, S.sessions);
+  const rv = S.review;
+  if (!items.length && !rv && !(ts && !ts.due)) return '';
+  return `<h2>Hinweise</h2>
+    ${rv ? `<a class="card tap" href="#/review"><div class="row"><div class="grow"><div class="eyebrow">Wochenreview von Claude</div>
+      <div class="small" style="margin-top:4px">${esc(rv.summary || '')}</div></div><span class="chev"></span></div></a>` : ''}
+    ${items.length ? `<div class="list insights">${items.map((i) => `<div class="item"><span class="dot ${i.level}"></span><div class="small" style="flex:1">${esc(i.text)}</div></div>`).join('')}</div>` : ''}
+    ${ts && !ts.due ? `<div class="muted small" style="margin:4px 4px 0">Nächster Leistungstest in ${ts.weeksLeft} ${ts.weeksLeft === 1 ? 'Woche' : 'Wochen'}</div>` : ''}`;
+}
+
 function viewStart() {
+  const head = `<div class="eyebrow" style="color:var(--muted)">${new Date().toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long' })}</div><h1>Diese Woche</h1>`;
   if (!S.plan) {
-    return `<h1>Workout</h1>
+    return `${head}
       <div class="hero"><div class="label">Willkommen</div><div class="day">Noch kein Trainingsplan</div>
       <p class="muted">Lade deinen 3er-Plan mit einem Tipp. Deine bisherigen Trainings werden mit übernommen.</p>
       <button class="btn primary big" data-a="loadMine">Meinen Plan laden</button>
@@ -144,27 +192,23 @@ function viewStart() {
       <button class="btn ghost" data-a="importPlan">Plan-Datei importieren</button>
       <button class="btn ghost" data-a="gotoSync">Sicherung von GitHub holen</button></div>`;
   }
+  const sel = S.selDate ?? dayStart(Date.now());
+  let main;
   if (S.draft) {
-    const d = S.draft, n = d.exercises.reduce((a, e) => a + e.sets.filter((s) => s.done).length, 0);
-    return `<h1>Workout</h1>
-      <div class="hero"><div class="label">Training läuft</div><div class="day">${esc(d.dayName)}</div>
-      <p class="muted">Seit ${fmtDuration(Date.now() - d.startedAt)} · ${n} Sätze erledigt</p>
-      <button class="btn primary big" data-a="resume">Weiter trainieren</button></div>
-      <h2>Diese Woche</h2><div class="card">${weekStrip()}</div>`;
-  }
-  const next = nextDay(S.plan, S.sessions);
-  const day = S.plan.days.find((d) => d.id === S.pickDay) || next;
-  const last = done().sort((a, b) => b.startedAt - a.startedAt)[0];
-  return `<h1>Workout</h1>
-    ${S.plan.days.length > 1 ? `<div class="chips" style="margin-top:12px">${S.plan.days.map((d) =>
-      `<button class="chip ${d.id === day.id ? 'on' : ''}" data-a="pickDay" data-id="${esc(d.id)}">${esc(d.name.split(' – ')[0])}</button>`).join('')}</div>` : ''}
-    <div class="hero"><div class="label">${day.id === next.id ? 'Heute dran' : 'Ausgewählt'}</div>
-      <div class="day">${esc(day.name)}</div>
-      ${day.note ? `<p class="muted small">${esc(day.note)}</p>` : ''}
-      <ul>${planPreview(day)}</ul>
-      <button class="btn primary big" data-a="start" data-id="${esc(day.id)}">Training starten</button></div>
-    <h2>Diese Woche</h2><div class="card">${weekStrip()}</div>
-    ${last ? `<h2>Zuletzt</h2><a class="card tap row" href="#/session/${last.id}"><div class="grow"><b>${esc(last.dayName)}</b><div class="muted small">${dateLong(last.startedAt)} · ${fmtDuration(last.endedAt - last.startedAt)}</div></div><span class="chev"></span></a>` : ''}`;
+    const d = S.draft, n = d.exercises.reduce((a, e) => a + e.sets.filter((x) => x.done).length, 0);
+    main = `<div class="hero"><div class="label">Training läuft</div><div class="day">${esc(d.dayName)}</div>
+      <p class="muted small">Seit ${fmtDuration(Date.now() - d.startedAt)} · ${n} Sätze erledigt</p>
+      <button class="btn primary big" data-a="resume">Weiter trainieren</button></div>`;
+  } else if (S.testDraft) {
+    main = `<div class="hero"><div class="label">Läuft</div><div class="day">Leistungstest</div>
+      <button class="btn primary big" data-a="openTest">Weiter testen</button></div>`;
+  } else main = dayCard(sel);
+  const ts = testStatus(S.plan, S.sessions);
+  const testCard = ts?.due && !S.draft && !S.testDraft ? `<div class="hero"><div class="label">${ts.baseline ? 'Startpunkt festhalten' : `Alle ${S.plan.tests.everyWeeks} Wochen`}</div>
+      <div class="day">Leistungstest fällig</div>
+      <p class="muted small">${S.plan.tests.items.map((t) => esc(t.name)).join(' · ')}. Am besten ausgeruht und statt einer normalen Einheit.</p>
+      <button class="btn big" style="background:var(--surface-2)" data-a="openTest">Test starten</button></div>` : '';
+  return `${head}<div class="card week-card">${weekStrip(sel)}</div>${main}${testCard}${insightsBlock()}`;
 }
 
 function startTraining(dayId) {
@@ -273,6 +317,8 @@ function tick() {
     const m = Math.floor((Date.now() - d.startedAt) / 60000);
     el.textContent = `${Math.floor(m / 60)}:${String(m % 60).padStart(2, '0')}`;
   }
+  const w = document.getElementById('watch');
+  if (w && S.testDraft?.watch?.running) w.textContent = fmtTime(watchSeconds(S.testDraft));
   const p = document.getElementById('panel');
   if (!p || !d) return;
   const ask = d.rirAsk && d.exercises[d.rirAsk.ex]?.sets[d.rirAsk.set] ? d.rirAsk : null;
@@ -361,7 +407,6 @@ function viewDone() {
   const vol = volume(d);
   const sets = d.exercises.reduce((a, e) => a + e.sets.filter((s) => s.done).length, 0);
   const prs = newRecords(d, done());
-  const faces = ['😫', '😕', '😐', '🙂', '💪'];
   return `<h1>Geschafft!</h1><p class="muted">${esc(d.dayName)} · ${dateLong(d.startedAt)}</p>
     <div class="stats" style="margin-top:16px">
       <div class="stat"><b>${fmtDuration(Date.now() - d.startedAt)}</b><span>Dauer</span></div>
@@ -369,11 +414,17 @@ function viewDone() {
       <div class="stat"><b>${fmtNum(Math.round(vol))}</b><span>kg bewegt</span></div>
     </div>
     ${prs.length ? `<h2>Neue Rekorde 🎉</h2>${prs.map((p) => `<div class="pr">${esc(p.name)}: ${esc(p.text)}</div>`).join('')}` : ''}
-    <h2>Wie war's?</h2>
-    <div class="feel">${faces.map((f, i) => `<button data-a="feel" data-v="${i + 1}" class="${d.feeling === i + 1 ? 'on' : ''}">${f}</button>`).join('')}</div>
-    <textarea id="sessnote" placeholder="Notiz zum Training (optional)">${esc(d.note || '')}</textarea>
+    <h2>Wie hart war die Session?</h2>
+    ${rpePicker(d.rpe)}
+    <h2>Notiz</h2>
+    <textarea id="sessnote" placeholder="Wie lief's? Was ist aufgefallen – Technik, Schmerzen, Energie …">${esc(d.note || '')}</textarea>
     <button class="btn good big" data-a="save">Speichern</button>
     <button class="btn ghost" data-a="backToTrain">Zurück zum Training</button>`;
+}
+
+function rpePicker(v) {
+  return `<div class="card rpe"><div class="rpegrid">${[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((n) => `<button data-a="rpe" data-v="${n}" class="${v === n ? 'on' : ''}">${n}</button>`).join('')}</div>
+    <div class="rpetext" id="rpetext">${v ? `RPE ${v} · ${RPE_TEXT[v]}` : '1 = sehr leicht · 10 = absolutes Maximum'}</div></div>`;
 }
 
 // Nach jeder Datenänderung im Hintergrund zu GitHub sichern (falls eingerichtet); Einstellungen danach aktualisieren
@@ -389,12 +440,12 @@ async function saveSession() {
   d.note = document.getElementById('sessnote')?.value.trim() || '';
   const session = {
     id: d.id, startedAt: d.startedAt, endedAt: Date.now(), planName: d.planName, dayId: d.dayId, dayName: d.dayName,
-    feeling: d.feeling || null, note: d.note,
+    feeling: d.feeling || null, rpe: d.rpe || null, note: d.note,
     exercises: d.exercises.map((e) => ({ key: e.key, name: e.name, type: e.type, unit: e.unit || 'reps', note: e.note, sets: e.sets.map(({ weight, reps, rir, done: dn }) => ({ weight, reps, rir: rir ?? null, done: dn })) })),
   };
   await db.putSession(session);
   await db.delMeta('draft');
-  S.sessions.push(session); S.draft = null; S.pickDay = null;
+  S.sessions.push(session); S.draft = null; S.pickDay = null; S.selDate = null;
   keepAwake(false);
   toast('Training gespeichert 💪');
   go('#/');
@@ -411,7 +462,8 @@ function exerciseIndex() {
 
 function viewHistory() {
   const list = done().sort((a, b) => b.startedAt - a.startedAt);
-  const seg = `<div class="seg"><button data-a="histTab" data-v="sessions" class="${S.histTab === 'sessions' ? 'on' : ''}">Trainings</button><button data-a="histTab" data-v="exercises" class="${S.histTab === 'exercises' ? 'on' : ''}">Übungen</button></div>`;
+  const seg = `<div class="seg">${[['sessions', 'Trainings'], ['exercises', 'Übungen'], ['tests', 'Tests']].map(([k, l]) => `<button data-a="histTab" data-v="${k}" class="${S.histTab === k ? 'on' : ''}">${l}</button>`).join('')}</div>`;
+  if (S.histTab === 'tests') return `<h1>Verlauf</h1>${seg}${testsOverview()}`;
   if (!list.length) return `<h1>Verlauf</h1>${seg}<div class="empty">Noch keine Trainings gespeichert.<br>Nach deinem ersten Training siehst du hier alles.</div>`;
   if (S.histTab === 'exercises') {
     return `<h1>Verlauf</h1>${seg}<div class="list">${exerciseIndex().map((e) => {
@@ -419,9 +471,8 @@ function viewHistory() {
       return `<a class="item" href="#/exercise/${encodeURIComponent(e.key)}" style="color:inherit;text-decoration:none"><div style="flex:1;min-width:0"><b>${esc(e.name)}</b><div class="muted small">Zuletzt ${esc(describePerf(h[0], e.type, e.unit))}</div></div><span class="chev"></span></a>`;
     }).join('')}</div>`;
   }
-  const faces = ['', '😫', '😕', '😐', '🙂', '💪'];
-  return `<h1>Verlauf</h1>${seg}<div class="list">${list.map((s) => `<a class="item" href="#/session/${s.id}" style="color:inherit;text-decoration:none">
-    <div style="flex:1;min-width:0"><b>${esc(s.dayName)}</b> ${faces[s.feeling || 0]}<div class="muted small">${dateLong(s.startedAt)} · ${fmtDuration(s.endedAt - s.startedAt)} · ${fmtNum(Math.round(volume(s)))} kg</div></div><span class="chev"></span></a>`).join('')}</div>`;
+  return `<h1>Verlauf</h1>${seg}<div class="list">${list.map((s) => `<a class="item" href="#/session/${s.id}">
+    <div style="flex:1;min-width:0"><b>${esc(s.dayName)}</b><div class="muted small">${dateLong(s.startedAt)} · ${fmtDuration(s.endedAt - s.startedAt)} · ${fmtNum(Math.round(volume(s)))} kg${s.rpe ? ` · RPE ${s.rpe}` : ''}</div></div><span class="chev"></span></a>`).join('')}</div>`;
 }
 
 function viewSession(id) {
@@ -432,7 +483,7 @@ function viewSession(id) {
     <h1>${esc(s.dayName)}</h1><p class="muted">${new Date(s.startedAt).toLocaleString('de-DE', { dateStyle: 'full', timeStyle: 'short' })}</p>
     <div class="stats"><div class="stat"><b>${fmtDuration(s.endedAt - s.startedAt)}</b><span>Dauer</span></div>
       <div class="stat"><b>${fmtNum(Math.round(volume(s)))}</b><span>kg bewegt</span></div>
-      <div class="stat"><b>${faces[s.feeling || 0] || '–'}</b><span>Gefühl</span></div></div>
+      <div class="stat"><b>${s.rpe ? s.rpe : (faces[s.feeling || 0] || '–')}</b><span>${s.rpe ? `RPE · ${RPE_TEXT[s.rpe]}` : 'Gefühl'}</span></div></div>
     ${s.note ? `<div class="card">${esc(s.note)}</div>` : ''}
     <div class="list">${s.exercises.map((e) => `<a class="item" href="#/exercise/${encodeURIComponent(e.key)}" style="color:inherit;text-decoration:none"><div style="flex:1;min-width:0"><b>${esc(e.name)}</b>
       <div class="muted small">${esc([describePerf(e, e.type, e.unit), rirSummary(e)].filter(Boolean).join(' · '))}</div>${e.note ? `<div class="small" style="font-style:italic;margin-top:2px">„${esc(e.note)}“</div>` : ''}</div><span class="chev"></span></a>`).join('')}</div>
@@ -460,6 +511,100 @@ function viewExercise(key) {
       <div class="legend">${bw ? `<span><i></i>Max. ${info.unit === 'sec' ? 'Sekunden' : 'Wdh.'}</span>` : '<span><i></i>Top-Gewicht</span><span><i class="l2"></i>geschätztes 1RM</span>'}</div></div>
     <h2>Alle Einträge</h2>
     <div class="list">${h.map((p) => `<div class="item"><div style="flex:1"><b>${esc(describePerf(p, info.type, info.unit))}</b>${rirSummary(p) ? ` <span class="muted small">· ${esc(rirSummary(p))}</span>` : ''}<div class="muted small">${dateLong(p.date)}</div>${p.note ? `<div class="small" style="font-style:italic">„${esc(p.note)}“</div>` : ''}</div></div>`).join('')}</div>`;
+}
+
+// ---------- Leistungstests ----------
+function testsOverview() {
+  const T = S.plan?.tests;
+  if (!T) return '<div class="empty">Im aktuellen Plan sind keine Tests definiert.</div>';
+  const ts = testStatus(S.plan, S.sessions);
+  return `<div class="card small muted">${ts.due ? 'Ein Test ist fällig.' : `Nächster Test in ${ts.weeksLeft} ${ts.weeksLeft === 1 ? 'Woche' : 'Wochen'}.`} Getestet wird alle ${T.everyWeeks} Wochen.</div>
+    ${T.items.map((t) => {
+    const h = testHistory(S.sessions, t.id), dl = testDelta(t, h);
+    const pts = [...h].reverse().map((x) => ({ x: x.date, y: t.type === 'time' ? Math.round(x.value / 6) / 10 : x.value }));
+    return `<h2>${esc(t.name)}</h2><div class="card">
+      <div class="row"><div class="grow"><div class="num" style="font-size:28px">${fmtTestValue(t, h[0]?.value)}</div>
+        <div class="muted small">${h[0] ? `${dateLong(h[0].date)}${t.lowerIsBetter ? ' · weniger ist besser' : ''}` : 'Noch kein Ergebnis'}</div></div>
+        ${dl ? `<span class="badge ${dl.better === true ? 'up' : dl.better === false ? 'down' : ''}">${esc(dl.text)}</span>` : ''}</div>
+      ${pts.length >= 2 ? `<div style="margin-top:12px">${lineChart(pts)}</div><div class="legend"><span><i></i>${t.type === 'time' ? 'Minuten' : 'Wiederholungen'}</span></div>` : ''}</div>`;
+  }).join('')}
+    ${!S.draft && !S.testDraft ? '<button class="btn" data-a="openTest">Test jetzt machen</button>' : ''}`;
+}
+
+function newTestDraft() {
+  return { id: `test-${Date.now()}`, startedAt: Date.now(), idx: 0, results: S.plan.tests.items.map((t) => ({ id: t.id, name: t.name, type: t.type, value: null })), watch: null };
+}
+const saveTestDraft = () => db.setMeta('testDraft', S.testDraft);
+
+function watchSeconds(d) {
+  const w = d.watch;
+  if (!w) return d.results[d.idx]?.value || 0;
+  return Math.round((w.acc + (w.running ? Date.now() - w.since : 0)) / 1000);
+}
+function readTestInput() {
+  const d = S.testDraft, t = S.plan.tests.items[d.idx];
+  if (t.type === 'time') { if (d.watch) d.results[d.idx].value = watchSeconds(d) || null; return; }
+  const el = document.getElementById('tv');
+  if (!el) return;
+  const v = parseInt(el.value, 10);
+  d.results[d.idx].value = Number.isFinite(v) ? v : null;
+}
+
+function viewTest() {
+  const T = S.plan?.tests, d = S.testDraft;
+  if (!T || !d) return '<div class="empty">Kein Test aktiv.</div>';
+  const t = T.items[d.idx], r = d.results[d.idx];
+  const prev = testHistory(S.sessions, t.id)[0];
+  const last = d.idx === T.items.length - 1;
+  const input = t.type === 'time'
+    ? `<div class="card watch"><div class="num watchtime" id="watch">${fmtTime(watchSeconds(d))}</div>
+        <div class="row" style="gap:8px;margin-top:14px">
+          ${d.watch?.running ? '<button class="btn primary pill" data-a="watchStop">Stopp</button>'
+    : `<button class="btn primary pill" data-a="watchStart">${d.watch ? 'Weiter' : 'Start'}</button>${d.watch ? '<button class="btn pill" style="background:var(--surface-2)" data-a="watchReset">Zurücksetzen</button>' : ''}`}
+        </div>
+        <button class="textlink" data-a="testEdit">Zeit von Hand eintragen</button></div>`
+    : `<div class="stepper"><button data-a="testMinus">−</button><div class="v"><input id="tv" inputmode="numeric" value="${r.value ?? ''}" placeholder="0"><small>Wiederholungen</small></div><button data-a="testPlus">+</button></div>`;
+  return `<div class="tbar"><button class="iconbtn" data-a="testMenu" aria-label="Menü">${ICON_X}</button><span class="crumb">Leistungstest</span><span class="time">${d.idx + 1}/${T.items.length}</span></div>
+    <div class="xhead"><div><div class="eyebrow">Test ${d.idx + 1} von ${T.items.length}</div><div class="xtitle">${esc(t.name)}</div></div></div>
+    <div class="memory"><div class="top"><div><div class="k">${prev ? `Letztes Ergebnis · ${dateLong(prev.date)}` : 'Erster Test'}</div><div class="v">${prev ? fmtTestValue(t, prev.value) : 'Das wird dein Startwert'}</div></div></div>
+      ${t.hint ? `<div class="sugg">${esc(t.hint)}</div>` : ''}
+      ${t.steps.length ? `<ol class="steps">${t.steps.map((x) => `<li>${esc(x)}</li>`).join('')}</ol>` : ''}</div>
+    <div style="margin-top:14px">${input}</div>
+    <div class="subnav"><button data-a="testPrev" ${d.idx === 0 ? 'disabled' : ''}>Zurück</button><button data-a="testSkip">Auslassen</button></div>
+    <div class="cta"><button class="btn primary big" data-a="testNext">${last ? 'Test abschließen' : 'Weiter'}</button></div>`;
+}
+
+function viewTestInfo(id) {
+  const x = S.sessions.find((y) => y.id === id);
+  if (!x) return '<div class="empty">Test nicht gefunden.</div>';
+  const items = S.plan?.tests?.items || [];
+  return `<button class="btn ghost" style="justify-content:flex-start;width:auto" data-a="back">‹ Zurück</button>
+    <h1>Leistungstest</h1><p class="muted">${new Date(x.startedAt).toLocaleString('de-DE', { dateStyle: 'full', timeStyle: 'short' })}</p>
+    <div class="list">${(x.results || []).map((r) => { const t = items.find((i) => i.id === r.id) || { type: r.type }; return `<div class="item"><div style="flex:1"><b>${esc(r.name)}</b></div><span class="num">${fmtTestValue(t, r.value)}</span></div>`; }).join('')}</div>
+    ${x.rpe ? `<div class="card small">RPE ${x.rpe} · ${RPE_TEXT[x.rpe]}</div>` : ''}${x.note ? `<div class="card small">${esc(x.note)}</div>` : ''}
+    <button class="btn danger" data-a="delSession" data-id="${x.id}">Test löschen</button>`;
+}
+
+// ---------- Claude-Wochenreview ----------
+function mdToHtml(md) {
+  const inline = (t) => esc(t).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>');
+  let html = '', inList = false;
+  for (const line of String(md).split('\n')) {
+    const l = line.trimEnd();
+    if (/^\s*[-*] /.test(l)) { if (!inList) { html += '<ul>'; inList = true; } html += `<li>${inline(l.replace(/^\s*[-*] /, ''))}</li>`; continue; }
+    if (inList) { html += '</ul>'; inList = false; }
+    if (/^#{1,3} /.test(l)) html += `<h3>${inline(l.replace(/^#+ /, ''))}</h3>`;
+    else if (l.trim()) html += `<p>${inline(l)}</p>`;
+  }
+  return html + (inList ? '</ul>' : '');
+}
+function viewReview() {
+  const rv = S.review;
+  if (!rv) return '<div class="empty">Noch kein Review vorhanden.</div>';
+  return `<button class="btn ghost" style="justify-content:flex-start;width:auto" data-a="back">‹ Zurück</button>
+    <div class="eyebrow">Wochenreview von Claude</div><h1 style="font-size:28px">${esc(rv.title || 'Deine Woche')}</h1>
+    <p class="muted small">${rv.date ? new Date(rv.date).toLocaleDateString('de-DE', { dateStyle: 'long' }) : ''}</p>
+    <div class="card md">${mdToHtml(rv.text || '')}</div>`;
 }
 
 // ---------- Woche ----------
@@ -586,6 +731,76 @@ const actions = {
     try { await setPlan(JSON.parse(txt)); } catch { setPlan(null); }
   },
   pickDay: (a) => { S.pickDay = a.dataset.id; render(); },
+  selDay: (a) => { S.selDate = +a.dataset.t; render(); },
+  pickOther: () => sheet(`<h3>Welches Training?</h3><div class="list">${S.plan.days.map((d) => `<button class="item" data-s="go" data-id="${esc(d.id)}"><span style="flex:1">${esc(d.name)}</span><span class="chev"></span></button>`).join('')}</div>`,
+    { go: (b) => { closeSheet(); unlockAudio(); startTraining(b.dataset.id); } }),
+  rpe: (a) => {
+    const v = +a.dataset.v;
+    const isTest = location.hash.startsWith('#/test');
+    const target = isTest ? S.testDraft : S.draft;
+    if (!target) return;
+    target.rpe = target.rpe === v ? null : v;
+    if (!isTest) { S.draft.note = document.getElementById('sessnote')?.value ?? S.draft.note; saveDraft(); } else saveTestDraft();
+    document.querySelectorAll('.rpegrid button').forEach((b) => b.classList.toggle('on', +b.dataset.v === target.rpe));
+    const el = document.getElementById('rpetext');
+    if (el) el.textContent = target.rpe ? `RPE ${target.rpe} · ${RPE_TEXT[target.rpe]}` : '1 = sehr leicht · 10 = absolutes Maximum';
+  },
+  openTest: () => {
+    if (!S.plan?.tests) return;
+    if (!S.testDraft) { S.testDraft = newTestDraft(); saveTestDraft(); }
+    unlockAudio(); keepAwake(true); go('#/test');
+  },
+  testMinus: () => { const i = document.getElementById('tv'); i.value = Math.max(0, (parseInt(i.value, 10) || 0) - 1); readTestInput(); saveTestDraft(); },
+  testPlus: () => { const i = document.getElementById('tv'); i.value = (parseInt(i.value, 10) || 0) + 1; readTestInput(); saveTestDraft(); },
+  watchStart: () => { const d = S.testDraft; d.watch = { acc: d.watch?.acc || 0, since: Date.now(), running: true }; saveTestDraft(); render(); },
+  watchStop: () => { const d = S.testDraft; d.watch.acc += Date.now() - d.watch.since; d.watch.running = false; readTestInput(); saveTestDraft(); render(); },
+  watchReset: () => { const d = S.testDraft; d.watch = null; d.results[d.idx].value = null; saveTestDraft(); render(); },
+  testEdit: () => {
+    const d = S.testDraft, cur = watchSeconds(d);
+    const bg = sheet(`<h3>Zeit eintragen</h3><div class="row" style="gap:10px;margin-bottom:14px"><div class="form grow"><label>Minuten<input id="tm" inputmode="numeric" value="${Math.floor(cur / 60)}"></label></div><div class="form grow"><label>Sekunden<input id="tsx" inputmode="numeric" value="${cur % 60}"></label></div></div>
+      <button class="btn primary" data-s="ok">Übernehmen</button>`, { ok: () => {
+      const v = (parseInt(bg.querySelector('#tm').value, 10) || 0) * 60 + (parseInt(bg.querySelector('#tsx').value, 10) || 0);
+      d.watch = v ? { acc: v * 1000, since: 0, running: false } : null; d.results[d.idx].value = v || null; saveTestDraft(); closeSheet(); render();
+    } });
+  },
+  testPrev: () => {
+    const d = S.testDraft; readTestInput(); d.idx--;
+    d.watch = d.results[d.idx].value && d.results[d.idx].type === 'time' ? { acc: d.results[d.idx].value * 1000, since: 0, running: false } : null;
+    saveTestDraft(); render();
+  },
+  testSkip: () => { const d = S.testDraft; if (d.watch?.running) return toast('Erst die Stoppuhr anhalten'); d.watch = null; d.results[d.idx].value = null; actions.testNext(null, true); },
+  testNext: (_a, skip = false) => {
+    const d = S.testDraft;
+    if (d.watch?.running) return toast('Erst die Stoppuhr anhalten');
+    if (!skip) readTestInput();
+    if (d.idx < S.plan.tests.items.length - 1) {
+      d.idx++;
+      d.watch = d.results[d.idx].value && d.results[d.idx].type === 'time' ? { acc: d.results[d.idx].value * 1000, since: 0, running: false } : null;
+      saveTestDraft(); render(); window.scrollTo(0, 0); return;
+    }
+    saveTestDraft();
+    const bg = sheet(`<h3>Test abschließen</h3>${rpePicker(d.rpe)}<textarea id="tnote" placeholder="Notiz (optional)">${esc(d.note || '')}</textarea>
+      <button class="btn primary big" data-s="save">Speichern</button>`, {
+      save: async () => {
+        const x = { id: d.id, kind: 'test', startedAt: d.startedAt, endedAt: Date.now(), planName: S.plan.name, dayId: 'test', dayName: 'Leistungstest',
+          rpe: d.rpe || null, note: bg.querySelector('#tnote').value.trim(), results: d.results.map(({ id, name, type, value }) => ({ id, name, type, value })), exercises: [] };
+        await db.putSession(x); await db.delMeta('testDraft');
+        S.sessions.push(x); S.testDraft = null; keepAwake(false); closeSheet();
+        toast('Test gespeichert'); S.histTab = 'tests'; go('#/history'); backupSoon();
+      },
+    });
+    // RPE-Buttons im Sheet
+    bg.querySelectorAll('[data-a="rpe"]').forEach((b) => b.addEventListener('click', () => actions.rpe(b)));
+  },
+  testMenu: () => sheet(`<h3>Leistungstest</h3>
+    <button class="btn" data-s="pause">Pausieren (später weitermachen)</button>
+    <button class="btn danger" data-s="discard">Test verwerfen</button>
+    <button class="btn ghost" data-s="close">Abbrechen</button>`, {
+    pause: () => { readTestInput(); saveTestDraft(); closeSheet(); keepAwake(false); go('#/'); },
+    discard: () => confirmSheet('Test verwerfen?', 'Die Eingaben dieses Tests gehen verloren.', 'Verwerfen', async () => { await db.delMeta('testDraft'); S.testDraft = null; keepAwake(false); go('#/'); }),
+    close: closeSheet,
+  }),
+
   start: (a) => { unlockAudio(); startTraining(a.dataset.id); },
   resume: () => { unlockAudio(); keepAwake(true); go('#/train'); },
   setDone: () => {
@@ -734,6 +949,16 @@ $app.addEventListener('touchend', (e) => {
 }, { passive: true });
 
 // ---------- Service Worker & Update-Hinweis ----------
+// Claude-Wochenreview höchstens alle 3 Stunden aus GitHub nachladen
+async function refreshReview() {
+  if (!S.sync || (S.review?.fetchedAt && Date.now() - S.review.fetchedAt < 3 * 3600e3)) return;
+  const r = await sync.fetchReview();
+  if (!r) return;
+  const changed = r.date !== S.review?.date || r.text !== S.review?.text;
+  S.review = r; await db.setMeta('review', r);
+  if (changed && (location.hash === '' || location.hash === '#/')) render();
+}
+
 let updateRequested = false;
 function registerSW() {
   if (!('serviceWorker' in navigator)) return;
@@ -766,5 +991,7 @@ function registerSW() {
   render();
   registerSW();
   sync.autoRetry();
+  refreshReview();
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') refreshReview(); });
   if (S.draft && location.hash.startsWith('#/train')) keepAwake(true);
 })();

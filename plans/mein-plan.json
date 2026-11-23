@@ -1,5 +1,35 @@
 {
  "name": "Finaler 3er-Plan",
+ "tests": {
+  "everyWeeks": 6,
+  "items": [
+   {
+    "id": "max-pullups",
+    "name": "Max. Pull-ups",
+    "type": "reps",
+    "hint": "Aus dem toten Hang, Kinn über die Stange, am Stück ohne Absetzen. Vorher gut aufwärmen."
+   },
+   {
+    "id": "max-pushups",
+    "name": "Max. Push-ups",
+    "type": "reps",
+    "hint": "Körper gerade, Brust bis knapp über den Boden, am Stück ohne Pause."
+   },
+   {
+    "id": "aphrodite",
+    "name": "Aphrodite",
+    "type": "time",
+    "hint": "Freeletics-Klassiker auf Zeit – Kraftausdauer und Kondition. Saubere Wiederholungen vor Tempo.",
+    "steps": [
+     "50 Burpees · 50 Squats · 50 Sit-ups",
+     "40 · 40 · 40",
+     "30 · 30 · 30",
+     "20 · 20 · 20",
+     "10 · 10 · 10"
+    ]
+   }
+  ]
+ },
  "days": [
   {
    "id": "Mo",
@@ -441,7 +471,8 @@
      ],
      "rir": "2–4"
     }
-   ]
+   ],
+   "rpe": 7
   },
   {
    "id": "log-2026-11-23",
@@ -532,7 +563,8 @@
      ],
      "rir": "1–2"
     }
-   ]
+   ],
+   "rpe": 7
   }
  ]
 }

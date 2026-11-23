@@ -102,6 +102,52 @@ t('Log-Import mit RIR', () => {
   eq(h[0].exercises[0].sets.map((s) => s.rir), ['1–2', 0]);
 });
 
+t('Wochentag ableiten', () => {
+  eq([L.inferWeekday({ id: 'Mo' }), L.inferWeekday({ id: 'X', name: 'Mittwoch – Beine' }), L.inferWeekday({ id: 'A', name: 'Tag A' }), L.inferWeekday({ weekday: 5 })], [1, 3, null, 5]);
+});
+t('Plan-Tag für Datum', () => {
+  const plan = L.normalizePlan({ days: [{ id: 'Mo', exercises: [{ name: 'X' }] }, { id: 'Fr', exercises: [{ name: 'Y' }] }] });
+  eq([L.planDayFor(plan, new Date(2026, 10, 23).getTime())?.id, L.planDayFor(plan, new Date(2026, 10, 24).getTime()), L.planDayFor(plan, new Date(2026, 10, 27).getTime())?.id], ['Mo', null, 'Fr']);
+});
+t('Teststatus: Basistest, dann alle 6 Wochen', () => {
+  const plan = L.normalizePlan({ tests: { everyWeeks: 6, items: [{ name: 'Max. Pull-ups' }] }, days: [{ exercises: [{ name: 'X' }] }] });
+  const now = new Date(2026, 10, 23).getTime(), wk = 7 * 864e5;
+  eq(L.testStatus(plan, [], now).baseline, true);
+  const t1 = { kind: 'test', startedAt: now - 2 * wk, endedAt: 1, results: [] };
+  eq([L.testStatus(plan, [t1], now).due, L.testStatus(plan, [t1], now).weeksLeft], [false, 4]);
+  eq(L.testStatus(plan, [t1], now + 4 * wk + 1).due, true);
+});
+t('Testverlauf + Veränderung', () => {
+  const ss = [{ kind: 'test', startedAt: 1, endedAt: 1, results: [{ id: 'a', value: 600 }] }, { kind: 'test', startedAt: 2, endedAt: 2, results: [{ id: 'a', value: 540 }] }];
+  const h = L.testHistory(ss, 'a');
+  eq(h.map((x) => x.value), [540, 600]);
+  eq(L.testDelta({ type: 'time', lowerIsBetter: true }, h), { text: '−1:00', better: true });
+  eq(L.testDelta({ type: 'reps', lowerIsBetter: false }, [{ value: 12 }, { value: 10 }]), { text: '+2', better: true });
+});
+t('Hinweis: sehr harte Sessions', () => {
+  const s = (t, rpe) => ({ id: String(t), startedAt: t, endedAt: t + 1, rpe, exercises: [] });
+  eq(L.insights(null, [s(3, 9), s(2, 10), s(1, 6)])[0].level, 'warn');
+  eq(L.insights(null, [s(3, 7), s(2, 7), s(1, 6)]).length, 0);
+});
+t('Hinweis: RIR 0 und zu leicht', () => {
+  const ex = (rirs) => [{ key: 'x', name: 'Rows', sets: rirs.map((r) => ({ weight: 15, reps: 10, rir: r, done: true })) }];
+  const ss = [{ id: 'b', startedAt: 2, endedAt: 3, exercises: ex([0, 0, 0]) }];
+  eq(L.insights(null, ss)[0].text.startsWith('Rows: alle Sätze am Limit'), true);
+  const easy = [{ id: 'b', startedAt: 2, endedAt: 3, exercises: ex([3, 4]) }, { id: 'a', startedAt: 1, endedAt: 2, exercises: ex([3, 3]) }];
+  eq(L.insights(null, easy)[0].level, 'good');
+});
+t('Hinweis: Stagnation', () => {
+  const p = (t, reps) => ({ id: String(t), startedAt: t, endedAt: t + 1, exercises: [{ key: 'x', name: 'Rows', sets: [{ weight: 15, reps, done: true }] }] });
+  eq(L.insights(null, [p(4, 10), p(3, 10), p(2, 9), p(1, 12)]).some((i) => i.text.includes('stagniert')), true);
+  eq(L.insights(null, [p(4, 13), p(3, 10), p(2, 9), p(1, 12)]).some((i) => i.text.includes('stagniert')), false);
+});
+
+t('Hinweise werden zusammengefasst', () => {
+  const ex = (k) => ({ key: k, name: k, sets: [0, 0].map((r) => ({ weight: 10, reps: 8, rir: r, done: true })) });
+  const r = L.insights(null, [{ id: 'a', startedAt: 1, endedAt: 2, exercises: [ex('A'), ex('B'), ex('C')] }]);
+  eq([r.length, r[0].text.startsWith('3 Übungen zuletzt komplett am Limit')], [1, true]);
+});
+
 out.insertAdjacentHTML('afterbegin', `<h2 id="summary" class="${fail ? 'fail' : 'ok'}">${pass} bestanden, ${fail} fehlgeschlagen</h2>`);
 </script>
 </body>
