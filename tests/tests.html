@@ -27,8 +27,8 @@ t('Ziel nie über repsMax', () => { const s = L.suggest(cfg, [perf(60, [12, 12, 
 t('Reduzieren nach 2× unter Bereich', () => { const s = L.suggest(cfg, [perf(60, [7, 6, 6]), perf(60, [7, 7, 6])]); eq([s.status, s.lighter], ['down', 57.5]); });
 t('Kein Reduzieren bei anderem Gewicht davor', () => { const s = L.suggest(cfg, [perf(60, [7, 6, 6]), perf(57.5, [7, 7, 6])]); eq(s.status, 'same'); });
 t('Körpergewicht: +1 Wdh.', () => { const s = L.suggest({ ...cfg, type: 'bodyweight' }, [perf(0, [10, 8, 8])]); eq([s.weight, s.reps], [0, 9]); });
-t('describePerf gleich', () => eq(L.describePerf(perf(60, [10, 10, 10])), '3×10 @ 60 kg'));
-t('describePerf Wdh. unterschiedlich', () => eq(L.describePerf(perf(62.5, [10, 9, 8])), '10/9/8 @ 62,5 kg'));
+t('describePerf gleich', () => eq(L.describePerf(perf(60, [10, 10, 10])), '3 × 10 · 60 kg'));
+t('describePerf Wdh. unterschiedlich', () => eq(L.describePerf(perf(62.5, [10, 9, 8])), '10 / 9 / 8 · 62,5 kg'));
 t('historyFor sortiert neueste zuerst & ignoriert offene', () => {
   const ss = [ses(1, 'A', [{ key: 'bank', ...perf(50, [8]) }]), ses(3, 'A', [{ key: 'bank', ...perf(55, [8]) }]), { ...ses(5, 'A', [{ key: 'bank', ...perf(99, [8]) }]), endedAt: null }];
   eq(L.historyFor(ss, 'bank').map((h) => h.sets[0].weight), [55, 50]);
@@ -63,7 +63,7 @@ t('Plan ohne Tage → Fehler', () => { let ok = false; try { L.normalizePlan({})
 t('Equipment: nächstes verfügbares Gewicht', () => { const c = { ...cfg, weights: [7.5, 12.5, 15] }; const s = L.suggest(c, [perf(7.5, [12, 12, 12])]); eq([s.weight, s.status], [12.5, 'up']); });
 t('Equipment: schwerstes erreicht → max', () => { const c = { ...cfg, weights: [7.5, 12.5, 15] }; const s = L.suggest(c, [perf(15, [12, 12, 12])]); eq([s.weight, s.reps, s.status], [15, 12, 'max']); });
 t('Körpergewicht: obere Grenze → max', () => { const s = L.suggest({ ...cfg, type: 'bodyweight', repsMax: 6 }, [perf(0, [6, 6, 6])]); eq(s.status, 'max'); });
-t('Sekunden in describePerf', () => eq(L.describePerf(perf(0, [45, 45, 45]), 'bodyweight', 'sec'), '3×45 s @ KG'));
+t('Sekunden in describePerf', () => eq(L.describePerf(perf(0, [45, 45, 45]), 'bodyweight', 'sec'), '3 × 45 s · Körpergew.'));
 t('rest: fehlt → null, 0 bleibt 0', () => {
   const p = L.normalizePlan({ days: [{ exercises: [{ name: 'X' }, { name: 'Y', rest: 0 }] }] });
   eq([p.days[0].exercises[0].rest, p.days[0].exercises[1].rest], [null, 0]);
@@ -88,6 +88,18 @@ t('Log-Import', () => {
   const plan = L.normalizePlan({ name: 'P', days: [{ id: 'Mo', name: 'Montag', exercises: [{ name: 'Prone Cobra', type: 'bodyweight', unit: 'sec', reps: 45 }] }] });
   const h = L.normalizeHistory([{ date: '2026-11-23T18:00:00', dayId: 'Mo', durationMin: 35, exercises: [{ name: 'Prone Cobra', weight: 0, sets: [45, 45] }] }], plan);
   eq([h[0].dayName, h[0].exercises[0].unit, h[0].exercises[0].sets.length, h[0].endedAt - h[0].startedAt], ['Montag', 'sec', 2, 35 * 60000]);
+});
+
+t('RIR-Zusammenfassung', () => {
+  eq(L.rirSummary({ sets: [{ done: true, rir: 1 }, { done: true, rir: 2 }, { done: true, rir: 2 }] }), 'RIR 1–2');
+  eq(L.rirSummary({ sets: [{ done: true, rir: 4 }] }), 'RIR 4+');
+  eq(L.rirSummary({ sets: [{ done: true, rir: '1–2' }, { done: true, rir: '1–2' }] }), 'RIR 1–2');
+  eq(L.rirSummary({ sets: [{ done: true }] }), '');
+});
+t('Log-Import mit RIR', () => {
+  const plan = L.normalizePlan({ days: [{ id: 'A', exercises: [{ name: 'X' }] }] });
+  const h = L.normalizeHistory([{ date: '2026-11-18T18:00:00', dayId: 'A', exercises: [{ name: 'X', weight: 10, rir: '1–2', sets: [8, { reps: 7, rir: 0 }] }] }], plan);
+  eq(h[0].exercises[0].sets.map((s) => s.rir), ['1–2', 0]);
 });
 
 out.insertAdjacentHTML('afterbegin', `<h2 id="summary" class="${fail ? 'fail' : 'ok'}">${pass} bestanden, ${fail} fehlgeschlagen</h2>`);

@@ -126,11 +126,26 @@ export function describePerf(perf, type = 'weight', repUnit = 'reps') {
   if (!sets.length) return '–';
   const same = sets.every((s) => s.weight === sets[0].weight && s.reps === sets[0].reps);
   const r = repUnit === 'sec' ? ' s' : '';
-  const unit = (w) => (type === 'bodyweight' && !w ? 'KG' : `${fmtNum(w)} kg`);
-  if (same) return `${sets.length}×${sets[0].reps}${r} @ ${unit(sets[0].weight)}`;
+  const unit = (w) => (type === 'bodyweight' && !w ? 'Körpergew.' : `${fmtNum(w)} kg`);
+  if (same) return `${sets.length} × ${sets[0].reps}${r} · ${unit(sets[0].weight)}`;
   if (sets.every((s) => s.weight === sets[0].weight))
-    return `${sets.map((s) => s.reps).join('/')}${r} @ ${unit(sets[0].weight)}`;
-  return sets.map((s) => `${fmtNum(s.weight)}×${s.reps}${r}`).join(', ');
+    return `${sets.map((s) => s.reps).join(' / ')}${r} · ${unit(sets[0].weight)}`;
+  return sets.map((s) => `${fmtNum(s.weight)} × ${s.reps}${r}`).join(', ');
+}
+
+/** RIR-Anzeige: 4 = "4+", Bereiche aus dem Import ("1–2") bleiben Text */
+export const fmtRir = (r) => (r == null || r === '' ? '' : typeof r === 'number' ? (r >= 4 ? '4+' : String(r)) : String(r));
+
+/** Zusammenfassung der RIR-Werte einer Ausführung, z. B. "RIR 1–2" oder "RIR 2". Leer, wenn keine erfasst. */
+export function rirSummary(perf) {
+  const vals = doneSets(perf).map((s) => s.rir).filter((r) => r != null && r !== '');
+  if (!vals.length) return '';
+  if (vals.some((v) => typeof v !== 'number')) {
+    const uniq = [...new Set(vals.map(String))];
+    return `RIR ${uniq.join(' / ')}`;
+  }
+  const lo = Math.min(...vals), hi = Math.max(...vals);
+  return lo === hi ? `RIR ${fmtRir(lo)}` : `RIR ${fmtRir(lo)}–${fmtRir(hi)}`;
 }
 
 /** Bestwerte einer Übung über eine Liste von Ausführungen */
@@ -232,7 +247,7 @@ export function normalizeHistory(raw, plan) {
         const key = slug(e.name), cfg = cfgByKey.get(key);
         return {
           key, name: e.name, type: cfg?.type || 'weight', unit: cfg?.unit || 'reps', note: e.note || '',
-          sets: (e.sets || []).map((x) => ({ weight: Number(x.weight ?? e.weight ?? 0), reps: Number(x.reps ?? x), done: true })),
+          sets: (e.sets || []).map((x) => ({ weight: Number(x.weight ?? e.weight ?? 0), reps: Number(x.reps ?? x), rir: x.rir ?? e.rir ?? null, done: true })),
         };
       }),
     };

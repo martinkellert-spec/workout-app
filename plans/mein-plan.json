@@ -385,7 +385,7 @@
       5,
       5
      ],
-     "note": "RIR 1–2"
+     "rir": "1–2"
     },
     {
      "name": "Walking Lunges",
@@ -395,7 +395,8 @@
       12,
       12
      ],
-     "note": "Je Seite · RIR 1–2"
+     "note": "Je Seite",
+     "rir": "1–2"
     },
     {
      "name": "Goblet Tempo Squat",
@@ -405,7 +406,8 @@
       12,
       12
      ],
-     "note": "3 Sek. ablassen · RIR 1–2"
+     "note": "3 Sek. ablassen",
+     "rir": "1–2"
     },
     {
      "name": "Squat Jumps",
@@ -415,7 +417,8 @@
       8,
       8
      ],
-     "note": "RIR 2–3 · letzte Wdh. deutlich schwerer"
+     "note": "letzte Wdh. deutlich schwerer",
+     "rir": "2–3"
     },
     {
      "name": "DB Curls",
@@ -425,7 +428,8 @@
       14,
       14
      ],
-     "note": "RIR 2–4 · Superset mit engen Push-ups"
+     "note": "Superset mit engen Push-ups",
+     "rir": "2–4"
     },
     {
      "name": "Enge Push-ups",
@@ -435,7 +439,7 @@
       12,
       12
      ],
-     "note": "RIR 2–4"
+     "rir": "2–4"
     }
    ]
   },
@@ -454,7 +458,7 @@
       5,
       5
      ],
-     "note": "RIR 1–2"
+     "rir": "1–2"
     },
     {
      "name": "Deficit Push-ups",
@@ -464,7 +468,7 @@
       12,
       12
      ],
-     "note": "RIR 1–2"
+     "rir": "1–2"
     },
     {
      "name": "DB Rows",
@@ -474,7 +478,7 @@
       12,
       12
      ],
-     "note": "RIR 1–2"
+     "rir": "1–2"
     },
     {
      "name": "Feet-elevated Push-ups",
@@ -484,7 +488,8 @@
       9,
       11
      ],
-     "note": "Nahe am Limit, nicht bis zum Versagen"
+     "note": "Nahe am Limit, nicht bis zum Versagen",
+     "rir": "0–1"
     },
     {
      "name": "Rear Delt Rows",
@@ -493,7 +498,8 @@
       12,
       12
      ],
-     "note": "RIR 1–2 · Gewicht nicht protokolliert, 7,5 kg angenommen"
+     "note": "Gewicht nicht protokolliert, 7,5 kg angenommen",
+     "rir": "1–2"
     },
     {
      "name": "Hanging Knee Raises",
@@ -503,7 +509,7 @@
       12,
       12
      ],
-     "note": "RIR 1–2"
+     "rir": "1–2"
     },
     {
      "name": "Dead Bugs",
@@ -513,7 +519,8 @@
       10,
       10
      ],
-     "note": "Je Seite"
+     "note": "Je Seite",
+     "rir": "1–2"
     },
     {
      "name": "Prone Cobra",
@@ -522,7 +529,8 @@
       45,
       45,
       45
-     ]
+     ],
+     "rir": "1–2"
     }
    ]
   }

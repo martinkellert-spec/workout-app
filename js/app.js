@@ -3,11 +3,11 @@ import * as sync from './sync.js';
 import {
   normalizePlan, normalizeHistory, historyFor, suggest, describePerf, records, newRecords, volume, nextDay,
   weekStart, weeklyStats, streak, fmtNum, fmtDuration, epley, topWeight, unitLabel, nextOpen, supersetNext,
-  nextWeight, prevWeight,
+  nextWeight, prevWeight, rirSummary, fmtRir,
 } from './logic.js';
 import { lineChart, barChart } from './charts.js';
 
-export const APP_VERSION = '1.3.0';
+export const APP_VERSION = '2.0.0';
 
 const $app = document.getElementById('app');
 const $tabbar = document.getElementById('tabbar');
@@ -17,7 +17,7 @@ const val = (id) => document.getElementById(id)?.value || '';
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const go = (hash) => { if (location.hash === hash) render(); else location.hash = hash; };
 const dateLong = (ts) => new Date(ts).toLocaleDateString('de-DE', { weekday: 'short', day: 'numeric', month: 'short' });
-const kg = (w, type) => (type === 'bodyweight' && !w ? 'KG' : `${fmtNum(w)} kg`);
+const kg = (w, type) => (type === 'bodyweight' && !w ? 'Körpergew.' : `${fmtNum(w)} kg`);
 const done = () => S.sessions.filter((s) => s.endedAt);
 
 function toast(msg) {
@@ -130,7 +130,7 @@ function weekStrip() {
 function planPreview(day) {
   return day.exercises.map((cfg) => {
     const s = suggest(cfg, historyFor(S.sessions, cfg.key));
-    return `<li><span>${cfg.group ? `<span class="grp">${esc(cfg.group)}</span>` : ''}${esc(cfg.name)}</span><span>${cfg.sets}×${s.reps}${cfg.unit === 'sec' ? ' s' : ''} · ${kg(s.weight, cfg.type)}${s.status === 'up' && cfg.type !== 'bodyweight' ? ' ▲' : ''}</span></li>`;
+    return `<li><span>${cfg.group ? `<span class="grp">${esc(cfg.group)}</span>` : ''}${esc(cfg.name)}</span><span class="${s.status === 'up' && cfg.type !== 'bodyweight' ? 'up' : ''}">${cfg.sets} × ${s.reps}${cfg.unit === 'sec' ? ' s' : ''} · ${kg(s.weight, cfg.type)}${s.status === 'up' && cfg.type !== 'bodyweight' ? ' ↑' : ''}</span></li>`;
   }).join('');
 }
 
@@ -157,7 +157,7 @@ function viewStart() {
   const last = done().sort((a, b) => b.startedAt - a.startedAt)[0];
   return `<h1>Workout</h1>
     ${S.plan.days.length > 1 ? `<div class="chips" style="margin-top:12px">${S.plan.days.map((d) =>
-      `<button class="chip ${d.id === day.id ? 'on' : ''}" data-a="pickDay" data-id="${esc(d.id)}">${esc(d.name)}</button>`).join('')}</div>` : ''}
+      `<button class="chip ${d.id === day.id ? 'on' : ''}" data-a="pickDay" data-id="${esc(d.id)}">${esc(d.name.split(' – ')[0])}</button>`).join('')}</div>` : ''}
     <div class="hero"><div class="label">${day.id === next.id ? 'Heute dran' : 'Ausgewählt'}</div>
       <div class="day">${esc(day.name)}</div>
       ${day.note ? `<p class="muted small">${esc(day.note)}</p>` : ''}
@@ -177,7 +177,7 @@ function startTraining(dayId) {
       const sg = suggest(cfg, hist);
       return {
         key: cfg.key, name: cfg.name, type: cfg.type, unit: cfg.unit, group: cfg.group, cfg, note: '', suggestion: sg,
-        last: hist[0] ? { date: hist[0].date, text: describePerf(hist[0], cfg.type, cfg.unit), note: hist[0].note || '' } : null,
+        last: hist[0] ? { date: hist[0].date, text: [describePerf(hist[0], cfg.type, cfg.unit), rirSummary(hist[0])].filter(Boolean).join(' · '), note: hist[0].note || '' } : null,
         sets: Array.from({ length: cfg.sets }, () => ({ weight: sg.weight, reps: sg.reps, done: false })),
       };
     }),
@@ -188,57 +188,81 @@ function startTraining(dayId) {
 }
 
 // ---------- Training ----------
+const ICON_X = '<svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M3 3l8 8M11 3l-8 8"/></svg>';
+const ICON_CHECK = '<svg viewBox="0 0 12 12" fill="none" stroke="#fff" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 6.2l2.3 2.3 4.7-5"/></svg>';
+function ringSvg(pct) {
+  const r = 24, c = 2 * Math.PI * r;
+  return `<svg width="56" height="56" viewBox="0 0 56 56"><circle cx="28" cy="28" r="${r}" fill="none" stroke="var(--ring-bg)" stroke-width="4.5"/>
+    <circle cx="28" cy="28" r="${r}" fill="none" stroke="var(--green)" stroke-width="4.5" stroke-linecap="round" stroke-dasharray="${c.toFixed(1)}" stroke-dashoffset="${(c * (1 - pct)).toFixed(1)}" transform="rotate(-90 28 28)" style="transition:stroke-dashoffset .4s"/></svg>`;
+}
+function badgeFor(sg, ex) {
+  if (sg.status === 'up' && ex.type !== 'bodyweight') return `<span class="badge up">↑ ${fmtNum(sg.weight)} kg</span>`;
+  if (sg.status === 'up') return `<span class="badge up">↑ ${sg.reps} ${ex.unit === 'sec' ? 's' : 'Wdh.'}</span>`;
+  if (sg.status === 'down') return '<span class="badge down">Prüfen</span>';
+  if (sg.status === 'max') return '<span class="badge">Max.</span>';
+  if (sg.status === 'new') return '<span class="badge new">Neu</span>';
+  return `<span class="badge">Ziel ${sg.reps}</span>`;
+}
+
 function viewTrain() {
   const d = S.draft, ex = d.exercises[d.idx], n = d.exercises.length;
   const doneCount = d.exercises.reduce((a, e) => a + e.sets.filter((s) => s.done).length, 0);
   const total = d.exercises.reduce((a, e) => a + e.sets.length, 0);
+  const pct = total ? doneCount / total : 0;
   const nextIdx = ex.sets.findIndex((s) => !s.done);
   const allDone = nextIdx === -1;
   const isLast = d.idx === n - 1;
   const following = nextOpen(d.exercises, d.idx);
   const sg = ex.suggestion;
-  const unitLbl = ex.type === 'bodyweight' ? 'Zusatz' : 'kg';
-  const repLbl = ex.unit === 'sec' ? 's' : 'Wdh';
+  const unitLbl = ex.type === 'bodyweight' ? 'kg+' : 'kg';
+  const repLbl = ex.unit === 'sec' ? 's' : '';
   const mates = ex.group ? d.exercises.filter((e) => e.group === ex.group) : [];
   // Nur noch die aktuelle Übung/Gruppe offen → "Training beenden" anbieten (z. B. nach 2 von 3 Core-Runden)
   const onlyGroupLeft = d.exercises.every((e, i) => i === d.idx || (ex.group && e.group === ex.group) || !e.sets.some((x) => !x.done));
+  const cta = allDone
+    ? (following === -1 ? '<button class="btn primary big" data-a="finish">Training abschließen</button>'
+      : `<button class="btn primary big" data-a="goOpen">Weiter: ${esc(d.exercises[following].name)}</button>`)
+    : `<button class="btn primary big" data-a="setDone">Satz ${nextIdx + 1} fertig</button>`;
   return `
-    <div class="trainhead">
-      <button data-a="trainMenu" aria-label="Menü">✕</button>
-      <button data-a="overview">${esc(d.dayName.split(' – ')[0])} · ${d.idx + 1}/${n} ▾</button>
-      <span id="elapsed" style="min-width:44px;text-align:right"></span>
+    <div class="tbar">
+      <button class="iconbtn" data-a="trainMenu" aria-label="Menü">${ICON_X}</button>
+      <button class="crumb" data-a="overview">${esc(d.dayName)} ⌄</button>
+      <span class="time" id="elapsed"></span>
     </div>
-    <div class="progress"><i style="width:${(doneCount / total) * 100}%"></i></div>
-    ${mates.length > 1 ? `<div class="ssbar">${mates.length > 2 ? 'Circuit' : 'Supersatz'} ${esc(ex.group)}: ${mates.map((m) => m === ex ? `<b>${esc(m.name)}</b>` : esc(m.name)).join(' ⇄ ')}</div>` : ''}
-    <div class="exname">${esc(ex.name)}</div>
-    ${d.idx === 0 && d.dayNote && !d.exercises.some((e) => e.sets.some((x) => x.done)) ? `<div class="card small"><b>Warm-up:</b> ${esc(d.dayNote)}</div>` : ''}
+    ${mates.length > 1 ? `<div class="ssbar">${mates.length > 2 ? 'Circuit' : 'Supersatz'} · ${mates.map((m) => m === ex ? `<b>${esc(m.name)}</b>` : esc(m.name)).join(' → ')}</div>` : ''}
+    <div class="xhead">
+      <div><div class="eyebrow">Übung ${d.idx + 1} von ${n}</div><div class="xtitle">${esc(ex.name)}</div></div>
+      <div class="ring">${ringSvg(pct)}<span>${Math.round(pct * 100)}%</span></div>
+    </div>
+    ${d.idx === 0 && d.dayNote && !doneCount ? `<div class="card small"><div class="eyebrow" style="margin-bottom:4px">Warm-up</div>${esc(d.dayNote)}</div>` : ''}
     <div class="memory">
-      <div class="last">${ex.last ? `Letztes Mal (${dateLong(ex.last.date)}): <b>${esc(ex.last.text)}</b>` : 'Noch keine Werte gespeichert'}</div>
-      <div class="sugg ${sg.status}">${sg.status === 'up' ? '▲ ' : sg.status === 'down' ? '⚠ ' : sg.status === 'max' ? '★ ' : ''}${esc(sg.text)}</div>
-      ${sg.status === 'down' ? `<button class="btn ghost" data-a="lighter" style="justify-content:flex-start">Auf ${fmtNum(sg.lighter)} kg reduzieren</button>` : ''}
-      ${ex.cfg.hint ? `<div class="note">${esc(ex.cfg.hint)}</div>` : ''}
-      ${ex.last?.note ? `<div class="note">Notiz letztes Mal: „${esc(ex.last.note)}“</div>` : ''}
+      <div class="top">
+        <div><div class="k">${ex.last ? `Letztes Mal · ${dateLong(ex.last.date)}` : 'Noch keine Werte'}</div><div class="v">${ex.last ? esc(ex.last.text) : 'Startwerte aus dem Plan'}</div></div>
+        ${badgeFor(sg, ex)}
+      </div>
+      <div class="sugg">${esc(sg.text)}${ex.cfg.hint ? ` · ${esc(ex.cfg.hint)}` : ''}
+        ${sg.status === 'down' ? `<div><button class="linkbtn" data-a="lighter">Auf ${fmtNum(sg.lighter)} kg reduzieren</button></div>` : ''}
+        ${ex.last?.note && !(ex.cfg.hint || '').toLowerCase().includes(ex.last.note.toLowerCase()) ? `<div class="note">„${esc(ex.last.note)}“</div>` : ''}</div>
     </div>
+    <div class="colhead"><span>Satz</span><span>${ex.type === 'bodyweight' ? 'Zusatz' : 'Gewicht'}</span><span>${ex.unit === 'sec' ? 'Zeit' : 'Wdh.'}</span><span>RIR</span><span></span></div>
     <div class="sets">
       ${ex.sets.map((s, i) => `<div class="set ${s.done ? 'done' : ''} ${i === nextIdx ? 'next' : ''}">
-        <div class="n">${i + 1}</div>
-        <button class="val" data-a="edit" data-i="${i}" data-f="weight">${ex.type === 'bodyweight' && !s.weight ? '<small>KG</small>' : `${fmtNum(s.weight)}<small>${unitLbl}</small>`}</button>
-        <button class="val" data-a="edit" data-i="${i}" data-f="reps">${s.reps}<small>${repLbl}</small></button>
-        <button class="chk" data-a="toggle" data-i="${i}" aria-label="Satz ${i + 1} erledigt">${s.done ? '✓' : ''}</button>
+        <span class="n">${i + 1}</span>
+        <button class="val" data-a="edit" data-i="${i}" data-f="weight">${ex.type === 'bodyweight' && !s.weight ? '<small style="margin:0">Körpergew.</small>' : `${fmtNum(s.weight)}<small>${unitLbl}</small>`}</button>
+        <button class="val" data-a="edit" data-i="${i}" data-f="reps">${s.reps}${repLbl ? `<small>${repLbl}</small>` : ''}</button>
+        <button class="rirv ${s.rir == null ? 'none' : ''}" data-a="askRir" data-i="${i}" aria-label="RIR Satz ${i + 1}">${s.rir == null ? '–' : fmtRir(s.rir)}</button>
+        <button class="chk" data-a="toggle" data-i="${i}" aria-label="Satz ${i + 1} erledigt">${s.done ? ICON_CHECK : ''}</button>
       </div>`).join('')}
-      <button class="addset" data-a="addSet">+ Satz hinzufügen</button>
+      <button class="addset" data-a="addSet">Satz hinzufügen</button>
     </div>
-    ${allDone
-    ? (following === -1 ? '<button class="btn good big" data-a="finish">Training abschließen ✓</button>'
-      : `<button class="btn primary big" data-a="goOpen">Weiter: ${esc(d.exercises[following].name)} →</button>`)
-    : '<button class="btn primary big" data-a="setDone">SATZ FERTIG</button>'}
-    <div id="timer"></div>
-    <div class="navrow">
-      <button class="btn" data-a="prev" ${d.idx === 0 ? 'disabled' : ''}>← Vorherige</button>
-      <button class="btn" data-a="note">${ex.note ? '✎ Notiz ✓' : '✎ Notiz'}</button>
+    <div id="panel"></div>
+    <div class="subnav">
+      <button data-a="prev" ${d.idx === 0 ? 'disabled' : ''}>Zurück</button>
+      <button data-a="note" class="${ex.note ? 'has' : ''}">${ex.note ? 'Notiz ✓' : 'Notiz'}</button>
+      ${!isLast && !allDone && !onlyGroupLeft ? '<button data-a="next">Überspringen</button>' : ''}
     </div>
-    ${!isLast && !allDone && !onlyGroupLeft ? '<button class="btn ghost" data-a="next">Übung überspringen →</button>' : ''}
-    ${onlyGroupLeft && following !== -1 ? '<button class="btn ghost" data-a="finish">Training jetzt beenden</button>' : ''}`;
+    ${onlyGroupLeft && following !== -1 ? '<button class="textlink" data-a="finish">Training jetzt beenden</button>' : ''}
+    <div class="cta">${cta}</div>`;
 }
 
 // Timer & Trainingsdauer – alle 250 ms aktualisieren (berechnet aus Zeitstempeln, läuft also auch nach Standby korrekt)
@@ -249,20 +273,30 @@ function tick() {
     const m = Math.floor((Date.now() - d.startedAt) / 60000);
     el.textContent = `${Math.floor(m / 60)}:${String(m % 60).padStart(2, '0')}`;
   }
-  const t = document.getElementById('timer');
-  if (!t) return;
-  if (!d?.rest) { t.innerHTML = ''; return; }
-  const left = Math.round((d.rest.endsAt - Date.now()) / 1000);
-  if (left <= 0 && !d.rest.alerted) { d.rest.alerted = true; saveDraft(); beep(); }
-  const abs = Math.abs(left);
-  const txt = `${left < 0 ? '+' : ''}${Math.floor(abs / 60)}:${String(abs % 60).padStart(2, '0')}`;
-  const cls = left <= 0 ? 'timer over' : 'timer';
-  if (t.dataset.state !== cls) {
-    t.dataset.state = cls;
-    t.innerHTML = `<div class="${cls}"><div><div class="small">${left <= 0 ? 'Pause vorbei – los!' : 'Pause'}</div><div class="t"></div></div>
-      <div class="row" style="gap:6px"><button data-a="restAdd">+30 s</button><button data-a="restStop">Stopp</button></div></div>`;
+  const p = document.getElementById('panel');
+  if (!p || !d) return;
+  const ask = d.rirAsk && d.exercises[d.rirAsk.ex]?.sets[d.rirAsk.set] ? d.rirAsk : null;
+  if (!ask && !d.rest) { p.innerHTML = ''; p.dataset.key = ''; return; }
+  const left = d.rest ? Math.round((d.rest.endsAt - Date.now()) / 1000) : 0;
+  if (d.rest && left <= 0 && !d.rest.alerted) { d.rest.alerted = true; saveDraft(); beep(); }
+  const over = d.rest && left <= 0;
+  const key = `${ask ? `${ask.ex}-${ask.set}-${d.exercises[ask.ex].sets[ask.set].rir}` : ''}|${d.rest ? 'r' : ''}|${over}`;
+  if (p.dataset.key !== key) {
+    p.dataset.key = key;
+    let html = '';
+    if (ask) {
+      const e = d.exercises[ask.ex], cur = e.sets[ask.set].rir;
+      html += `<div class="q">Wie viele wären noch gegangen? <span>${ask.ex !== d.idx ? `${esc(e.name)} · ` : ''}Satz ${ask.set + 1}</span></div>
+        <div class="rirseg">${[0, 1, 2, 3, 4].map((v) => `<button data-a="rir" data-v="${v}" class="${cur === v ? 'on' : ''}">${v === 4 ? '4+' : v}</button>`).join('')}</div>`;
+    }
+    if (d.rest) {
+      html += `<div class="rest ${over ? 'over' : ''}"><div><div class="k">${over ? 'Pause vorbei' : 'Pause'}</div><div class="t"></div></div>
+        <div class="mini"><button data-a="restAdd">+30 s</button><button data-a="restStop">${over ? 'OK' : 'Überspringen'}</button></div></div>`;
+    }
+    p.innerHTML = `<div class="panel">${html}</div>`;
   }
-  t.querySelector('.t').textContent = txt;
+  const t = p.querySelector('.t');
+  if (t) { const a = Math.abs(left); t.textContent = `${left < 0 ? '+' : ''}${Math.floor(a / 60)}:${String(a % 60).padStart(2, '0')}`; }
 }
 setInterval(tick, 250);
 
@@ -271,13 +305,15 @@ function startRest(sec) {
 }
 
 // Nach einem erledigten Satz: Pause starten (0 = direkt weiter) und bei Supersatz/Circuit zur nächsten Übung springen
-function afterSet(ex) {
+function afterSet(ex, setIdx) {
   const d = S.draft;
+  d.rirAsk = { ex: d.idx, set: setIdx };
   const anyOpen = nextOpen(d.exercises, d.idx) !== -1 || ex.sets.some((s) => !s.done);
   startRest(anyOpen ? (ex.cfg.rest ?? S.settings.restDefault) : 0);
   const j = supersetNext(d.exercises, d.idx);
-  if (j !== d.idx) { d.idx = j; toast(`→ ${d.exercises[j].name}`); window.scrollTo(0, 0); }
+  if (j !== d.idx) { d.idx = j; toast(`→ ${d.exercises[j].name}`); }
   saveDraft(); render();
+  requestAnimationFrame(() => document.getElementById('panel')?.scrollIntoView({ behavior: 'smooth', block: 'end' }));
 }
 
 function editValue(i, field) {
@@ -354,7 +390,7 @@ async function saveSession() {
   const session = {
     id: d.id, startedAt: d.startedAt, endedAt: Date.now(), planName: d.planName, dayId: d.dayId, dayName: d.dayName,
     feeling: d.feeling || null, note: d.note,
-    exercises: d.exercises.map((e) => ({ key: e.key, name: e.name, type: e.type, unit: e.unit || 'reps', note: e.note, sets: e.sets.map(({ weight, reps, done: dn }) => ({ weight, reps, done: dn })) })),
+    exercises: d.exercises.map((e) => ({ key: e.key, name: e.name, type: e.type, unit: e.unit || 'reps', note: e.note, sets: e.sets.map(({ weight, reps, rir, done: dn }) => ({ weight, reps, rir: rir ?? null, done: dn })) })),
   };
   await db.putSession(session);
   await db.delMeta('draft');
@@ -399,7 +435,7 @@ function viewSession(id) {
       <div class="stat"><b>${faces[s.feeling || 0] || '–'}</b><span>Gefühl</span></div></div>
     ${s.note ? `<div class="card">${esc(s.note)}</div>` : ''}
     <div class="list">${s.exercises.map((e) => `<a class="item" href="#/exercise/${encodeURIComponent(e.key)}" style="color:inherit;text-decoration:none"><div style="flex:1;min-width:0"><b>${esc(e.name)}</b>
-      <div class="muted small">${esc(describePerf(e, e.type, e.unit))}</div>${e.note ? `<div class="small" style="font-style:italic;margin-top:2px">„${esc(e.note)}“</div>` : ''}</div><span class="chev"></span></a>`).join('')}</div>
+      <div class="muted small">${esc([describePerf(e, e.type, e.unit), rirSummary(e)].filter(Boolean).join(' · '))}</div>${e.note ? `<div class="small" style="font-style:italic;margin-top:2px">„${esc(e.note)}“</div>` : ''}</div><span class="chev"></span></a>`).join('')}</div>
     <button class="btn danger" data-a="delSession" data-id="${s.id}">Training löschen</button>`;
 }
 
@@ -423,7 +459,7 @@ function viewExercise(key) {
     <div class="card">${lineChart(pts)}
       <div class="legend">${bw ? `<span><i></i>Max. ${info.unit === 'sec' ? 'Sekunden' : 'Wdh.'}</span>` : '<span><i></i>Top-Gewicht</span><span><i class="l2"></i>geschätztes 1RM</span>'}</div></div>
     <h2>Alle Einträge</h2>
-    <div class="list">${h.map((p) => `<div class="item"><div style="flex:1"><b>${esc(describePerf(p, info.type, info.unit))}</b><div class="muted small">${dateLong(p.date)}</div>${p.note ? `<div class="small" style="font-style:italic">„${esc(p.note)}“</div>` : ''}</div></div>`).join('')}</div>`;
+    <div class="list">${h.map((p) => `<div class="item"><div style="flex:1"><b>${esc(describePerf(p, info.type, info.unit))}</b>${rirSummary(p) ? ` <span class="muted small">· ${esc(rirSummary(p))}</span>` : ''}<div class="muted small">${dateLong(p.date)}</div>${p.note ? `<div class="small" style="font-style:italic">„${esc(p.note)}“</div>` : ''}</div></div>`).join('')}</div>`;
 }
 
 // ---------- Woche ----------
@@ -516,8 +552,11 @@ async function setPlan(raw) {
     await db.setMeta('plan', S.plan);
     let added = 0;
     for (const h of hist) {
-      if (S.sessions.some((x) => x.id === h.id)) continue;
-      await db.putSession(h); S.sessions.push(h); added++;
+      const old = S.sessions.find((x) => x.id === h.id);
+      if (old && !old.imported) continue; // selbst geloggte Trainings nie überschreiben
+      await db.putSession(h);
+      S.sessions = S.sessions.filter((x) => x.id !== h.id).concat(h);
+      if (!old) added++;
     }
     S.pickDay = null;
     toast(added ? `Plan geladen + ${added} Trainings übernommen` : `Plan „${S.plan.name}“ geladen`);
@@ -555,15 +594,25 @@ const actions = {
     const i = ex.sets.findIndex((s) => !s.done);
     if (i < 0) return;
     ex.sets[i].done = true;
-    afterSet(ex);
+    afterSet(ex, i);
   },
   toggle: (a) => {
     const ex = S.draft.exercises[S.draft.idx], s = ex.sets[+a.dataset.i];
     s.done = !s.done;
-    if (s.done) return afterSet(ex);
+    if (s.done) return afterSet(ex, +a.dataset.i);
+    if (S.draft.rirAsk?.ex === S.draft.idx && S.draft.rirAsk.set === +a.dataset.i) S.draft.rirAsk = null;
     saveDraft(); render();
   },
   edit: (a) => editValue(+a.dataset.i, a.dataset.f),
+  askRir: (a) => { S.draft.rirAsk = { ex: S.draft.idx, set: +a.dataset.i }; saveDraft(); tick(); document.getElementById('panel')?.scrollIntoView({ behavior: 'smooth', block: 'center' }); },
+  rir: (a) => {
+    const d = S.draft, ask = d.rirAsk;
+    if (!ask) return;
+    const st = d.exercises[ask.ex].sets[ask.set];
+    st.rir = st.rir === +a.dataset.v ? null : +a.dataset.v;
+    if (st.rir != null) d.rirAsk = null;
+    saveDraft(); render();
+  },
   addSet: () => {
     const ex = S.draft.exercises[S.draft.idx], l = ex.sets[ex.sets.length - 1];
     ex.sets.push({ weight: l?.weight ?? 0, reps: l?.reps ?? 8, done: false });

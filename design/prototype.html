@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Design-Prototyp</title>
+<style>
+  body { margin: 0; background: #d9d9dc; font-family: -apple-system, "SF Pro Display", "SF Pro Text", system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+  .stage { display: flex; gap: 48px; justify-content: center; padding: 40px 24px; flex-wrap: wrap; }
+  .caption { text-align: center; font-size: 13px; color: #6e6e73; margin-top: 14px; letter-spacing: .01em; }
+
+  .phone { width: 390px; height: 844px; border-radius: 56px; padding: 12px; background: #1d1d1f; box-shadow: 0 30px 60px rgba(0,0,0,.18), inset 0 0 0 1.5px #3a3a3c; }
+  .phone.light { background: #c8c9cc; box-shadow: 0 30px 60px rgba(0,0,0,.14), inset 0 0 0 1.5px #e5e5e7; }
+  .screen { height: 100%; border-radius: 44px; overflow: hidden; position: relative; background: var(--bg); color: var(--text); }
+  .island { position: absolute; top: 11px; left: 50%; transform: translateX(-50%); width: 122px; height: 35px; border-radius: 20px; background: #000; }
+  .status { display: flex; justify-content: space-between; padding: 17px 34px 0; font-size: 16px; font-weight: 600; letter-spacing: -.01em; }
+
+  .dark  { --bg:#000; --surface:#121413; --surface2:#1b1e1c; --text:#f5f5f3; --muted:#8d928e; --faint:#5b605c; --line:rgba(255,255,255,.07);
+           --accent:#1f6b45; --accentText:#ffffff; --green:#4cc283; --greenSoft:rgba(76,194,131,.13); --ringBg:#18231d; }
+  .light { --bg:#f2f2f6; --surface:#ffffff; --surface2:#f6f6f8; --text:#1c1c1e; --muted:#8a8a8f; --faint:#b6b6bb; --line:rgba(0,0,0,.07);
+           --accent:#1f5a3f; --accentText:#ffffff; --green:#1d7a4c; --greenSoft:#e5f0ea; --ringBg:#e4e6e5; }
+
+  .content { padding: 18px 22px 0; }
+  .top { display: flex; align-items: center; justify-content: space-between; height: 36px; }
+  .iconbtn { width: 32px; height: 32px; border-radius: 50%; background: var(--surface2); display: grid; place-items: center; color: var(--muted); }
+  .iconbtn svg { width: 14px; height: 14px; }
+  .crumb { font-size: 13px; font-weight: 500; color: var(--muted); letter-spacing: .01em; }
+  .time { font-size: 13px; font-weight: 500; color: var(--muted); font-variant-numeric: tabular-nums; }
+
+  .head { display: flex; justify-content: space-between; align-items: flex-end; margin: 22px 0 18px; }
+  .eyebrow { font-size: 11px; font-weight: 600; letter-spacing: .09em; text-transform: uppercase; color: var(--green); margin-bottom: 6px; }
+  .title { font-size: 32px; font-weight: 600; letter-spacing: -.028em; line-height: 1.05; }
+  .ring { position: relative; width: 54px; height: 54px; }
+  .ring span { position: absolute; inset: 0; display: grid; place-items: center; font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums; color: var(--muted); }
+
+  .memory { display: flex; align-items: center; justify-content: space-between; padding: 12px 14px; background: var(--surface); border-radius: 16px; }
+  .memory .k { font-size: 11px; font-weight: 500; color: var(--muted); letter-spacing: .02em; }
+  .memory .v { font-size: 15px; font-weight: 400; margin-top: 2px; font-variant-numeric: tabular-nums; }
+  .pill { font-size: 13px; font-weight: 600; color: var(--green); background: var(--greenSoft); padding: 6px 11px; border-radius: 999px; letter-spacing: -.005em; white-space: nowrap; }
+
+  .colhead { display: grid; grid-template-columns: 44px 1fr 0.8fr 52px 30px; padding: 22px 14px 8px; font-size: 10.5px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--faint); }
+  .sets { background: var(--surface); border-radius: 18px; overflow: hidden; }
+  .set { display: grid; grid-template-columns: 44px 1fr 0.8fr 52px 30px; align-items: center; height: 58px; padding: 0 14px; border-top: .5px solid var(--line); }
+  .set:first-child { border-top: 0; }
+  .n { font-size: 13px; font-weight: 500; color: var(--faint); font-variant-numeric: tabular-nums; }
+  .set.cur .n { color: var(--green); font-weight: 600; }
+  .num { font-size: 24px; font-weight: 300; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+  .num small { font-size: 12px; font-weight: 400; color: var(--muted); margin-left: 3px; letter-spacing: 0; }
+  .set.done .num { color: var(--muted); }
+  .rir { font-size: 13px; font-weight: 500; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .rir b { font-weight: 600; color: var(--text); }
+  .set .rir.empty { color: var(--faint); }
+  .chk { width: 24px; height: 24px; border-radius: 50%; border: 1.25px solid var(--faint); justify-self: end; display: grid; place-items: center; }
+  .chk.on { background: var(--green); border-color: var(--green); }
+  .chk svg { width: 12px; height: 12px; }
+
+  .rirpanel { margin-top: 14px; background: var(--surface); border-radius: 18px; padding: 14px 14px 12px; }
+  .rirpanel .row { display: flex; justify-content: space-between; align-items: baseline; }
+  .q { font-size: 14px; font-weight: 500; letter-spacing: -.01em; }
+  .hint { font-size: 12px; color: var(--muted); }
+  .seg { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; margin-top: 12px; }
+  .seg div { height: 40px; border-radius: 12px; background: var(--surface2); display: grid; place-items: center; font-size: 17px; font-weight: 400; font-variant-numeric: tabular-nums; }
+  .seg div.on { background: var(--accent); color: var(--accentText); font-weight: 600; }
+  .rest { display: flex; align-items: center; justify-content: space-between; margin-top: 12px; padding-top: 12px; border-top: .5px solid var(--line); }
+  .rest .t { font-size: 30px; font-weight: 200; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+  .rest .k { font-size: 11px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+  .mini { display: flex; gap: 6px; }
+  .mini div { font-size: 13px; font-weight: 500; padding: 7px 12px; border-radius: 999px; background: var(--surface2); color: var(--text); }
+
+  .cta { position: absolute; left: 22px; right: 22px; bottom: 40px; height: 56px; border-radius: 999px; background: var(--accent); color: var(--accentText); display: grid; place-items: center; font-size: 17px; font-weight: 600; letter-spacing: -.01em; }
+  .homebar { position: absolute; bottom: 9px; left: 50%; transform: translateX(-50%); width: 134px; height: 5px; border-radius: 3px; background: var(--text); opacity: .85; }
+</style>
+</head>
+<body>
+<div class="stage" id="stage"></div>
+<script>
+const check = '<svg viewBox="0 0 12 12" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 6.2l2.3 2.3 4.7-5"/></svg>';
+const ring = (pct) => {
+  const r = 24, c = 2 * Math.PI * r;
+  return `<svg width="54" height="54" viewBox="0 0 54 54"><circle cx="27" cy="27" r="${r}" fill="none" stroke="var(--ringBg)" stroke-width="4"/>
+    <circle cx="27" cy="27" r="${r}" fill="none" stroke="var(--green)" stroke-width="4" stroke-linecap="round" stroke-dasharray="${c}" stroke-dashoffset="${c * (1 - pct)}" transform="rotate(-90 27 27)"/></svg>`;
+};
+const phone = (mode, caption) => `
+<div><div class="phone ${mode}"><div class="screen ${mode}">
+  <div class="island"></div>
+  <div class="status"><span>18:42</span><span style="font-size:13px">●●● ▮</span></div>
+  <div class="content">
+    <div class="top">
+      <div class="iconbtn"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M3 3l8 8M11 3l-8 8"/></svg></div>
+      <div class="crumb">Mittwoch · Beine / Arme</div>
+      <div class="time">24:10</div>
+    </div>
+    <div class="head">
+      <div><div class="eyebrow">Übung 2 von 9</div><div class="title">Walking<br>Lunges</div></div>
+      <div class="ring">${ring(0.24)}<span>24%</span></div>
+    </div>
+    <div class="memory">
+      <div><div class="k">Letztes Mal · 18. Nov.</div><div class="v">3 × 12 · 7,5 kg · RIR 1–2</div></div>
+      <div class="pill">↑ 12,5 kg</div>
+    </div>
+    <div class="colhead"><span>Satz</span><span>Gewicht</span><span>Wdh.</span><span>RIR</span><span></span></div>
+    <div class="sets">
+      <div class="set done"><span class="n">1</span><span class="num">12,5<small>kg</small></span><span class="num">10</span><span class="rir"><b>2</b></span><span class="chk on">${check}</span></div>
+      <div class="set cur"><span class="n">2</span><span class="num">12,5<small>kg</small></span><span class="num">10</span><span class="rir empty">–</span><span class="chk"></span></div>
+      <div class="set"><span class="n">3</span><span class="num">12,5<small>kg</small></span><span class="num">10</span><span class="rir empty">–</span><span class="chk"></span></div>
+    </div>
+    <div class="rirpanel">
+      <div class="row"><span class="q">Wie viele wären noch gegangen?</span><span class="hint">Satz 1</span></div>
+      <div class="seg"><div>0</div><div>1</div><div class="on">2</div><div>3</div><div>4+</div></div>
+      <div class="rest"><div><div class="k">Pause</div><div class="t">1:14</div></div><div class="mini"><div>+30 s</div><div>Überspringen</div></div></div>
+    </div>
+  </div>
+  <div class="cta">Satz 2 fertig</div>
+  <div class="homebar"></div>
+</div></div><div class="caption">${caption}</div></div>`;
+document.getElementById('stage').innerHTML = phone('dark', 'Dunkel · Racing Green') + phone('light', 'Hell · Titan');
+</script>
+</body>
+</html>

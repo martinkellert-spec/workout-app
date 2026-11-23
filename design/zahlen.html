@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<title>Zahlen-Varianten</title>
+<style>
+  /* Nur für die Vorschau am Mac. Auf dem iPhone liefert Safari diese Schriften selbst (ui-rounded / system-ui). */
+  @font-face { font-family: "PrevRounded"; src: url("fonts/SFNSRounded.ttf"); font-weight: 1 1000; }
+  @font-face { font-family: "PrevSF"; src: url("fonts/SFNS.ttf"); font-weight: 1 1000; }
+  body { margin: 0; background: #e6e6e9; font-family: "PrevSF", -apple-system, system-ui, sans-serif; -webkit-font-smoothing: antialiased; color: #1c1c1e; }
+  .grid { display: grid; grid-template-columns: repeat(4, 340px); gap: 22px; padding: 30px; justify-content: center; }
+  .card { background: #f2f2f6; border-radius: 30px; padding: 22px 18px 20px; }
+  .tag { font-size: 12px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: #1d7a4c; }
+  .name { font-size: 20px; font-weight: 600; letter-spacing: -.02em; margin: 4px 0 2px; }
+  .desc { font-size: 13px; color: #8a8a8f; margin-bottom: 16px; min-height: 34px; }
+  .hero { background: #fff; border-radius: 18px; padding: 16px; display: flex; justify-content: space-between; align-items: flex-end; }
+  .hero .k { font-size: 11px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: #8a8a8f; }
+  .colhead { display: grid; grid-template-columns: 40px 1fr .8fr 48px 26px; padding: 16px 14px 6px; font-size: 10.5px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: #b6b6bb; }
+  .sets { background: #fff; border-radius: 18px; overflow: hidden; }
+  .set { display: grid; grid-template-columns: 40px 1fr .8fr 48px 26px; align-items: center; height: 56px; padding: 0 14px; border-top: .5px solid rgba(0,0,0,.07); }
+  .set:first-child { border-top: 0; }
+  .n { font-size: 13px; color: #b6b6bb; font-weight: 500; }
+  .cur .n { color: #1d7a4c; font-weight: 600; }
+  .done .v { color: #a1a1a6; }
+  .chk { width: 22px; height: 22px; border-radius: 50%; border: 1.25px solid #c7c7cc; justify-self: end; }
+  .done .chk { background: #1d7a4c; border-color: #1d7a4c; }
+  .u { color: #8a8a8f; }
+  .timer { margin-top: 12px; background: #fff; border-radius: 18px; padding: 14px 16px; display: flex; justify-content: space-between; align-items: center; }
+  .timer .k { font-size: 11px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: #8a8a8f; }
+  .pill { font-size: 13px; font-weight: 600; color: #1d7a4c; background: #e5f0ea; padding: 6px 11px; border-radius: 999px; }
+  .num { font-variant-numeric: tabular-nums; }
+</style>
+</head>
+<body>
+<div class="grid" id="g"></div>
+<script>
+const V = [
+  { tag: 'Variante 1', name: 'Rounded Semibold', desc: 'Wie Apple Fitness und die Watch: rund, kräftig, sportlich',
+    f: "'PrevRounded', ui-rounded", set: [22, 600, -0.01], hero: [44, 600, -0.02], timer: [34, 600, -0.02], unit: [13, 500] },
+  { tag: 'Variante 2', name: 'Rounded Medium', desc: 'Rund, aber leichter, ruhig und freundlich',
+    f: "'PrevRounded', ui-rounded", set: [22, 500, -0.01], hero: [44, 500, -0.02], timer: [34, 500, -0.02], unit: [13, 500] },
+  { tag: 'Variante 3', name: 'SF Pro Semibold', desc: 'Klar und technisch, wie die Health-App',
+    f: "'PrevSF', -apple-system", set: [21, 600, -0.02], hero: [42, 700, -0.035], timer: [32, 600, -0.03], unit: [13, 500] },
+  { tag: 'Variante 4', name: 'SF Pro Medium, kompakt', desc: 'Filigraner, eng gesetzt, wie die Uhr auf dem Sperrbildschirm',
+    f: "'PrevSF', -apple-system", set: [21, 500, -0.03], hero: [46, 500, -0.045], timer: [34, 500, -0.04], unit: [12, 500] },
+];
+const s = (f, [size, w, ls]) => `font-family:${f};font-size:${size}px;font-weight:${w};letter-spacing:${ls}em`;
+document.getElementById('g').innerHTML = V.map((v) => {
+  const n = (txt, spec) => `<span class="num v" style="${s(v.f, spec)}">${txt}</span>`;
+  const unit = (t) => `<span class="u" style="font-family:${v.f};font-size:${v.unit[0]}px;font-weight:${v.unit[1]};margin-left:3px;letter-spacing:0">${t}</span>`;
+  const row = (cls, i, rir) => `<div class="set ${cls}"><span class="n">${i}</span><span>${n('12,5', v.set)}${unit('kg')}</span><span>${n('10', v.set)}</span><span>${rir ? n(rir, [17, v.set[1], 0]) : '<span class="u">–</span>'}</span><span class="chk"></span></div>`;
+  return `<div class="card"><div class="tag">${v.tag}</div><div class="name">${v.name}</div><div class="desc">${v.desc}</div>
+    <div class="hero"><div><div class="k">Heute</div><div>${n('12,5', v.hero)}${unit('kg')}</div></div><span class="pill">↑ 5 kg</span></div>
+    <div class="colhead"><span>Satz</span><span>Gewicht</span><span>Wdh.</span><span>RIR</span><span></span></div>
+    <div class="sets">${row('done', 1, '2')}${row('cur', 2)}${row('', 3)}</div>
+    <div class="timer"><div><div class="k">Pause</div>${n('1:14', v.timer)}</div>
+      <div style="text-align:right"><div class="k">Training</div>${n('24:10', [20, v.timer[1], v.timer[2]])}</div></div></div>`;
+}).join('');
+</script>
+</body>
+</html>
