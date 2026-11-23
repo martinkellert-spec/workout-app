@@ -212,3 +212,8 @@ a.card, a.item { color: inherit; text-decoration: none; }
 .ssbar { font-size: 13px; color: var(--accent); background: var(--accent-soft); border-radius: 10px; padding: 6px 10px; margin-bottom: 4px; }
 .ssbar b { font-weight: 700; }
 .grp { display: inline-block; min-width: 20px; font-size: 11px; font-weight: 700; color: var(--accent); margin-right: 6px; }
+.form label { display: block; font-size: 13px; color: var(--muted); font-weight: 600; margin-bottom: 12px; }
+.form label:last-child { margin-bottom: 0; }
+.form input { display: block; width: 100%; margin-top: 6px; padding: 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--bg); font-size: 16px; color: var(--text); }
+.ok { color: var(--good); font-weight: 600; }
+.warn { color: var(--warn); font-weight: 600; }

@@ -1,4 +1,5 @@
 import * as db from './db.js';
+import * as sync from './sync.js';
 import {
   normalizePlan, normalizeHistory, historyFor, suggest, describePerf, records, newRecords, volume, nextDay,
   weekStart, weeklyStats, streak, fmtNum, fmtDuration, epley, topWeight, unitLabel, nextOpen, supersetNext,
@@ -6,12 +7,13 @@ import {
 } from './logic.js';
 import { lineChart, barChart } from './charts.js';
 
-export const APP_VERSION = '1.2.1';
+export const APP_VERSION = '1.3.0';
 
 const $app = document.getElementById('app');
 const $tabbar = document.getElementById('tabbar');
 const S = { plan: null, sessions: [], draft: null, settings: { restDefault: 90 }, pickDay: null, histTab: 'sessions' };
 
+const val = (id) => document.getElementById(id)?.value || '';
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const go = (hash) => { if (location.hash === hash) render(); else location.hash = hash; };
 const dateLong = (ts) => new Date(ts).toLocaleDateString('de-DE', { weekday: 'short', day: 'numeric', month: 'short' });
@@ -82,6 +84,7 @@ document.addEventListener('visibilitychange', () => { if (document.visibilitySta
 async function load() {
   [S.plan, S.sessions, S.draft] = await Promise.all([db.getMeta('plan'), db.allSessions(), db.getMeta('draft')]);
   S.settings = { ...S.settings, ...((await db.getMeta('settings')) || {}) };
+  S.sync = await sync.getConfig();
 }
 const saveDraft = () => db.setMeta('draft', S.draft);
 
@@ -138,7 +141,8 @@ function viewStart() {
       <p class="muted">Lade deinen 3er-Plan mit einem Tipp. Deine bisherigen Trainings werden mit übernommen.</p>
       <button class="btn primary big" data-a="loadMine">Meinen Plan laden</button>
       <button class="btn" data-a="loadExample">Beispielplan ausprobieren</button>
-      <button class="btn ghost" data-a="importPlan">Plan-Datei importieren</button></div>`;
+      <button class="btn ghost" data-a="importPlan">Plan-Datei importieren</button>
+      <button class="btn ghost" data-a="gotoSync">Sicherung von GitHub holen</button></div>`;
   }
   if (S.draft) {
     const d = S.draft, n = d.exercises.reduce((a, e) => a + e.sets.filter((s) => s.done).length, 0);
@@ -336,6 +340,14 @@ function viewDone() {
     <button class="btn ghost" data-a="backToTrain">Zurück zum Training</button>`;
 }
 
+// Nach jeder Datenänderung im Hintergrund zu GitHub sichern (falls eingerichtet); Einstellungen danach aktualisieren
+async function backupSoon() {
+  if (!S.sync) return;
+  await sync.schedule();
+  S.sync = await sync.getConfig();
+  if (location.hash.startsWith('#/settings')) render();
+}
+
 async function saveSession() {
   const d = S.draft;
   d.note = document.getElementById('sessnote')?.value.trim() || '';
@@ -350,6 +362,7 @@ async function saveSession() {
   keepAwake(false);
   toast('Training gespeichert 💪');
   go('#/');
+  backupSoon();
 }
 
 // ---------- Verlauf ----------
@@ -444,13 +457,45 @@ function viewSettings() {
     <h2>Pausentimer</h2>
     <div class="card row"><div class="grow">Standard-Pause (wenn der Plan keine vorgibt):</div>
       <div class="row" style="gap:6px"><button class="btn" style="width:44px;min-height:44px" data-a="restDef" data-v="-15">−</button><b style="min-width:52px;text-align:center">${S.settings.restDefault} s</b><button class="btn" style="width:44px;min-height:44px" data-a="restDef" data-v="15">+</button></div></div>
-    <h2>Daten & Backup</h2>
-    <div class="card small muted">Alle Trainings liegen nur auf diesem iPhone. Exportiere regelmäßig ein Backup (z. B. nach iCloud Drive).${S.persisted ? '<br>✓ Speicher ist dauerhaft geschützt.' : ''}</div>
-    <button class="btn primary" data-a="export">Backup exportieren</button>
-    <button class="btn" data-a="importBackup">Backup wiederherstellen</button>
+    <h2 id="sync">GitHub-Sicherung</h2>
+    ${syncSection()}
+    <h2>Backup als Datei</h2>
+    <div class="card small muted">Zusätzlich kannst du eine Backup-Datei z. B. in iCloud Drive ablegen.${S.persisted ? '<br>✓ Speicher auf diesem Gerät ist dauerhaft geschützt.' : ''}</div>
+    <button class="btn" data-a="export">Backup exportieren</button>
+    <button class="btn" data-a="importBackup">Backup-Datei wiederherstellen</button>
     <h2>Info</h2>
     <div class="card small muted">Version ${APP_VERSION} · ${done().length} Trainings gespeichert</div>
     <button class="btn danger" data-a="wipe">Alle Daten löschen</button>`;
+}
+
+const ago = (ts) => {
+  const m = Math.round((Date.now() - ts) / 60000);
+  if (m < 1) return 'gerade eben';
+  if (m < 60) return `vor ${m} Min.`;
+  if (m < 1440) return `vor ${Math.round(m / 60)} Std.`;
+  return new Date(ts).toLocaleDateString('de-DE', { day: 'numeric', month: 'short' });
+};
+
+function syncSection() {
+  const c = S.sync;
+  if (!c) {
+    const owner = location.hostname.endsWith('.github.io') ? location.hostname.split('.')[0] : '';
+    return `<div class="card small">Sichert jedes Training automatisch in dein <b>privates</b> GitHub-Repo. So gehen keine Daten verloren – auch nicht bei Handywechsel.</div>
+      <div class="card form">
+        <label>GitHub-Benutzername<input id="syOwner" value="${esc(owner)}" autocapitalize="off" autocorrect="off" spellcheck="false"></label>
+        <label>Privates Repo<input id="syRepo" value="workout-data" autocapitalize="off" autocorrect="off" spellcheck="false"></label>
+        <label>Token<input id="syToken" type="password" placeholder="github_pat_…" autocapitalize="off" autocorrect="off" spellcheck="false"></label>
+      </div>
+      <button class="btn primary" data-a="syncConnect">Verbinden</button>`;
+  }
+  const status = c.lastError
+    ? `<span class="warn">⚠ ${esc(c.lastError)}</span>`
+    : c.pending ? '⏳ Sicherung ausstehend – wird nachgeholt, sobald Internet da ist'
+      : c.lastSyncAt ? `<span class="ok">✓ Gesichert ${ago(c.lastSyncAt)}</span>` : '';
+  return `<div class="card small"><b>${esc(c.owner)}/${esc(c.repo)}</b><div style="margin-top:4px">${status}</div></div>
+    <button class="btn primary" data-a="syncNow">Jetzt sichern</button>
+    <button class="btn" data-a="syncRestore">Von GitHub wiederherstellen</button>
+    <button class="btn ghost danger" data-a="syncOff">Verbindung trennen</button>`;
 }
 
 async function readFile(input) {
@@ -477,6 +522,7 @@ async function setPlan(raw) {
     S.pickDay = null;
     toast(added ? `Plan geladen + ${added} Trainings übernommen` : `Plan „${S.plan.name}“ geladen`);
     go('#/');
+    backupSoon();
   } catch (e) { sheet(`<h3>Plan nicht lesbar</h3><p class="muted" style="text-align:center">${esc(e.message)}</p><button class="btn" data-s="x">OK</button>`, { x: closeSheet }); }
 }
 
@@ -561,12 +607,56 @@ const actions = {
     await db.deleteSession(a.dataset.id);
     S.sessions = S.sessions.filter((s) => s.id !== a.dataset.id);
     toast('Gelöscht'); go('#/history');
+    backupSoon();
   }),
   restDef: async (a) => {
     S.settings.restDefault = Math.max(15, Math.min(600, S.settings.restDefault + +a.dataset.v));
     await db.setMeta('settings', S.settings); render();
   },
   export: exportBackup,
+  gotoSync: () => { go('#/settings'); setTimeout(() => document.getElementById('sync')?.scrollIntoView({ behavior: 'smooth' }), 100); },
+  syncConnect: async (a) => {
+    a.disabled = true; a.textContent = 'Verbinde …';
+    try {
+      const r = await sync.connect({ owner: val('syOwner'), repo: val('syRepo'), token: val('syToken') });
+      S.sync = await sync.getConfig();
+      if (!r.private) toast('Achtung: Das Repo ist öffentlich! Bitte auf privat stellen.');
+      if (r.hasBackup && !S.sessions.length) {
+        // Neues Gerät: vorhandene Sicherung anbieten statt sie zu überschreiben
+        render();
+        return confirmSheet('Sicherung gefunden', 'Im Repo liegt schon eine Sicherung. Jetzt auf dieses Gerät holen?', 'Wiederherstellen', () => actions.syncRestore(null, true), false);
+      }
+      if (r.hasBackup && S.sessions.length) {
+        render();
+        return sheet(`<h3>Im Repo liegt schon eine Sicherung</h3><p class="muted" style="text-align:center">Welche Daten sollen gelten?</p>
+          <button class="btn primary" data-s="mine">Daten von diesem iPhone hochladen</button>
+          <button class="btn" data-s="theirs">Sicherung aus GitHub übernehmen</button>`, {
+          mine: async () => { closeSheet(); await actions.syncNow(); },
+          theirs: () => { closeSheet(); actions.syncRestore(null, true); },
+        });
+      }
+      await actions.syncNow();
+    } catch (e) {
+      a.disabled = false; a.textContent = 'Verbinden';
+      sheet(`<h3>Verbindung fehlgeschlagen</h3><p class="muted" style="text-align:center">${esc(e.message)}</p><button class="btn" data-s="x">OK</button>`, { x: closeSheet });
+    }
+  },
+  syncNow: async () => {
+    try { await sync.push(); toast('Bei GitHub gesichert ✓'); }
+    catch (e) { toast(e.message); }
+    S.sync = await sync.getConfig(); if (location.hash.startsWith('#/settings')) render();
+  },
+  syncRestore: async (_a, confirmed = false) => {
+    const doIt = async () => {
+      try { const n = await sync.restore(); await load(); toast(`${n} Trainings von GitHub geholt`); go('#/'); }
+      catch (e) { toast(e.message); S.sync = await sync.getConfig(); render(); }
+    };
+    if (confirmed) return doIt();
+    confirmSheet('Von GitHub wiederherstellen?', 'Die Daten auf diesem iPhone werden durch die Sicherung aus GitHub ersetzt.', 'Wiederherstellen', doIt);
+  },
+  syncOff: () => confirmSheet('Verbindung trennen?', 'Der Token wird von diesem iPhone entfernt. Die Sicherung bei GitHub bleibt erhalten.', 'Trennen', async () => {
+    await sync.disconnect(); S.sync = null; render();
+  }),
   importBackup: async () => {
     const txt = await readFile(document.getElementById('fileBackup'));
     confirmSheet('Backup wiederherstellen?', 'Alle aktuellen Daten auf diesem Gerät werden durch das Backup ersetzt.', 'Wiederherstellen', async () => {
@@ -626,5 +716,6 @@ function registerSW() {
   }
   render();
   registerSW();
+  sync.autoRetry();
   if (S.draft && location.hash.startsWith('#/train')) keepAwake(true);
 })();

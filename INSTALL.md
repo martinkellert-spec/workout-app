@@ -29,13 +29,27 @@ Die App ist eine Web-App (PWA). Sie wird einmal online gestellt und dann wie ein
 2. In der App: **Mehr → Plan importieren** → Datei auswählen.
 3. Fertig: Plan und deine bisherigen Trainings vom 18.11. und 23.11. sind übernommen.
 
-## 4. Updates
+## 4. Automatische Sicherung bei GitHub
+
+Jedes gespeicherte Training wird automatisch in dein **privates** Repo `workout-data` gesichert. Bist du offline, holt die App die Sicherung nach, sobald wieder Internet da ist.
+
+**Einmalig einrichten:**
+1. Token erstellen. Er darf **nur** `workout-data` lesen und schreiben:
+   <https://github.com/settings/personal-access-tokens/new?name=workout-app-iphone&description=Sicherung+der+Workout-App&expires_in=365&contents=write>
+   - **Repository access:** „Only select repositories“ → `workout-data`
+   - **Permissions → Repository permissions → Contents:** „Read and write“
+   - **Generate token** → Token kopieren (beginnt mit `github_pat_`)
+2. Auf dem iPhone in der App: **Mehr → GitHub-Sicherung** → Token einfügen → **Verbinden**.
+
+**Neues iPhone / App gelöscht:** App neu installieren → **Mehr → GitHub-Sicherung** → mit Token verbinden. Die App bietet dann von selbst an, die Sicherung zurückzuholen.
+
+## 5. Updates
 
 Wenn Claude etwas an der App ändert und es online stellt, erscheint beim nächsten Öffnen oben **„Neue Version verfügbar – Neu laden“**. Deine Trainingsdaten bleiben dabei erhalten.
 
-## 5. Datensicherung
+## 6. Datensicherung als Datei
 
-- Alle Trainings liegen **nur auf deinem iPhone**.
+- Die Trainings liegen auf deinem iPhone und, wenn eingerichtet, zusätzlich in deinem privaten GitHub-Repo.
 - In der App unter **Mehr → Backup exportieren** die Datei in **iCloud Drive / Dateien** speichern, am besten alle paar Wochen.
 - Bei einem neuen iPhone: App wie oben installieren → **Mehr → Backup wiederherstellen**.
 - Achtung: Wer die App vom Homescreen löscht, löscht auch die Daten. Vorher also ein Backup machen.
