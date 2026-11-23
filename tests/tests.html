@@ -160,6 +160,18 @@ t('Wochenfortschritt', () => {
   eq(L.weekProgress(plan, [s(23), s(23), s(18)], now), { planned: 2, done: 1 });
 });
 
+t('Warm-up zerlegen', () => {
+  eq(L.parseWarmup('4–5 Min.: Air Squats, Reverse Lunges / lockere Chin-ups'), { duration: '4–5 Min.', items: ['Air Squats', 'Reverse Lunges', 'Lockere Chin-ups'] });
+  eq(L.parseWarmup('Ca. 4 Min. kurzes Ganzkörper-Warm-up'), { duration: '', items: ['Ca. 4 Min. kurzes Ganzkörper-Warm-up'] });
+});
+t('Test am Trainingstag gilt nicht als verpasst', () => {
+  const plan = L.normalizePlan({ days: [{ id: 'Mo', exercises: [{ name: 'A' }] }] });
+  const now = new Date(2026, 10, 25, 12).getTime();
+  const test = { kind: 'test', startedAt: new Date(2026, 10, 23, 18).getTime(), endedAt: 1, results: [], exercises: [] };
+  eq(L.insights(plan, [test], now).some((i) => i.text.includes('geplante Einheit')), false);
+  eq(L.insights(plan, [], now).some((i) => i.text.includes('geplante Einheit')), true);
+});
+
 out.insertAdjacentHTML('afterbegin', `<h2 id="summary" class="${fail ? 'fail' : 'ok'}">${pass} bestanden, ${fail} fehlgeschlagen</h2>`);
 </script>
 </body>

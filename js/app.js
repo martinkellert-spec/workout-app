@@ -4,11 +4,11 @@ import {
   normalizePlan, normalizeHistory, historyFor, suggest, describePerf, records, newRecords, volume, nextDay,
   weekStart, weeklyStats, streak, fmtNum, fmtDuration, epley, topWeight, unitLabel, nextOpen, supersetNext,
   nextWeight, prevWeight, rirSummary, fmtRir, planDayFor, sameDay, testStatus, testHistory, testDelta,
-  fmtTestValue, fmtTime, insights, weekProgress, estimateMinutes, blocks,
+  fmtTestValue, fmtTime, insights, weekProgress, estimateMinutes, blocks, parseWarmup,
 } from './logic.js';
 import { lineChart, barChart } from './charts.js';
 
-export const APP_VERSION = '3.0.0';
+export const APP_VERSION = '3.0.1';
 
 const $app = document.getElementById('app');
 const $tabbar = document.getElementById('tabbar');
@@ -166,6 +166,13 @@ function exLine(cfg) {
   return `<div class="exl"><span class="nm">${esc(cfg.name)}</span><span class="vv ${up ? 'up' : ''}">${cfg.sets} × ${s.reps}${cfg.unit === 'sec' ? ' s' : ''}${cfg.type === 'bodyweight' && !s.weight ? '' : ` · ${fmtNum(s.weight)} kg`}${up ? ' ↑' : ''}</span></div>`;
 }
 
+function warmupSection(note, open = false) {
+  const w = parseWarmup(note);
+  if (!w) return '';
+  return `<details class="sec" ${open ? 'open' : ''}><summary>Warm-up${w.duration ? `<span class="sumx">${esc(w.duration)}</span>` : ''}<span class="chev"></span></summary>
+    <div class="tl"><div class="blk">${w.items.map((x) => `<div class="exl"><span class="nm">${esc(x)}</span></div>`).join('')}</div></div></details>`;
+}
+
 function dayDetail(day, sel) {
   const past = dayStart(sel) < dayStart(Date.now());
   const title = day.focus || day.name.split(' – ')[1] || day.name;
@@ -176,7 +183,7 @@ function dayDetail(day, sel) {
       <div class="dmeta"><span>${ICON_CLOCK}≈ ${estimateMinutes(day, S.settings.restDefault)} Min.</span><span>${ICON_LIST}${day.exercises.length} Übungen</span></div>
       ${day.equipment ? `<div class="dmeta"><span>${ICON_TOOL}${esc(day.equipment)}</span></div>` : ''}
     </div>
-    ${day.note ? `<details class="sec"><summary>Warm-up<span class="chev"></span></summary><div class="secbody small">${esc(day.note)}</div></details>` : ''}
+    ${warmupSection(day.note)}
     <details class="sec" open><summary>Workout<span class="chev"></span></summary>
       <div class="tl">${bl.map((b) => `<div class="blk">
         ${b.items.length > 1 ? `<div class="blkh">${b.items.length > 2 ? 'Circuit' : 'Supersatz'} · ${Math.max(...b.items.map((e) => e.sets))} Runden</div>` : ''}
@@ -194,7 +201,8 @@ function dayCard(sel) {
     return thatDay.map((x) => `<a class="hero done-card" href="#/${x.kind === 'test' ? 'testinfo' : 'session'}/${x.id}">
       <div class="label">${esc(label)} · erledigt ✓</div>
       <div class="day">${esc(x.kind === 'test' ? 'Leistungstest' : (S.plan.days.find((d) => d.id === x.dayId)?.focus || x.dayName))}</div>
-      <div class="donerow"><span>${fmtDuration(x.endedAt - x.startedAt)}</span>${x.kind === 'test' ? `<span>${(x.results || []).filter((r) => r.value != null).length} Tests</span>` : `<span>${fmtNum(Math.round(volume(x)))} kg</span>`}${x.rpe ? `<span>RPE ${x.rpe}</span>` : ''}<span class="chev" style="margin-left:auto"></span></div></a>`).join('');
+      ${x.kind === 'test' && planDayFor(S.plan, sel) ? `<div class="muted small" style="margin:-4px 0 10px">statt ${esc(planDayFor(S.plan, sel).focus || planDayFor(S.plan, sel).name)}</div>` : ''}
+      <div class="donerow"><span>${fmtDuration(x.endedAt - x.startedAt)}</span>${x.kind === 'test' ? `<span>${((n) => `${n} ${n === 1 ? 'Test' : 'Tests'}`)((x.results || []).filter((r) => r.value != null).length)}</span>` : `<span>${fmtNum(Math.round(volume(x)))} kg</span>`}${x.rpe ? `<span>RPE ${x.rpe}</span>` : ''}<span class="chev" style="margin-left:auto"></span></div></a>`).join('');
   }
   const day = planDayFor(S.plan, sel);
   if (!day) {
@@ -240,7 +248,9 @@ function viewStart() {
   const ts = testStatus(S.plan, S.sessions);
   const testCard = ts?.due && !S.draft && !S.testDraft ? `<div class="hero"><div class="label">${ts.baseline ? 'Startpunkt festhalten' : `Alle ${S.plan.tests.everyWeeks} Wochen`}</div>
       <div class="day">Leistungstest fällig</div>
-      <p class="muted small">${S.plan.tests.items.map((t) => esc(t.name)).join(' · ')}. Am besten ausgeruht und statt einer normalen Einheit.</p>
+      <p class="muted small">${S.plan.tests.items.map((t) => esc(t.name)).join(' · ')}.
+        ${(() => { const td = planDayFor(S.plan, Date.now()); const doneToday = S.sessions.some((x) => x.endedAt && sameDay(x.startedAt, Date.now()));
+    return td && !doneToday ? `Ersetzt das heutige Training (${esc(td.focus || td.name)}) und zählt für die perfekte Woche.` : 'Am besten ausgeruht und statt einer normalen Einheit – zählt für die perfekte Woche.'; })()}</p>
       <button class="btn pill glass" data-a="openTest">Test starten</button></div>` : '';
   return `${topStats()}${weekStrip(sel)}<div class="daywrap">${main}</div>${testCard}${insightsBlock()}`;
 }
@@ -312,7 +322,7 @@ function viewTrain() {
       <div><div class="eyebrow">Übung ${d.idx + 1} von ${n}</div><div class="xtitle">${esc(ex.name)}</div></div>
       <div class="ring">${ringSvg(pct)}<span>${Math.round(pct * 100)}%</span></div>
     </div>
-    ${d.idx === 0 && d.dayNote && !doneCount ? `<div class="card small"><div class="eyebrow" style="margin-bottom:4px">Warm-up</div>${esc(d.dayNote)}</div>` : ''}
+    ${d.idx === 0 && d.dayNote && !doneCount ? `<div style="margin-bottom:12px">${warmupSection(d.dayNote, true)}</div>` : ''}
     <div class="memory">
       <div class="top">
         <div><div class="k">${ex.last ? `Letztes Mal · ${dateLong(ex.last.date)}` : 'Noch keine Werte'}</div><div class="v">${ex.last ? esc(ex.last.text) : 'Startwerte aus dem Plan'}</div></div>

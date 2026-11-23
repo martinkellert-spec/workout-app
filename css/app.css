@@ -391,3 +391,5 @@ details.sec[open] summary .chev::after { transform: rotate(-45deg); margin-top: 
   #app { padding-top: calc(max(env(safe-area-inset-top), 50px) + 12px); }
   .banner { top: calc(max(env(safe-area-inset-top), 50px) + 6px); }
 }
+details.sec summary .sumx { margin-left: auto; margin-right: 12px; font-size: 14px; font-weight: 500; color: var(--muted); letter-spacing: 0; }
+details.sec .blk .exl { padding: 5px 0; }

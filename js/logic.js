@@ -397,7 +397,8 @@ export function insights(plan, sessions, now = Date.now()) {
   if (plan) {
     const ws = weekStart(now);
     const planned = plan.days.filter((d) => d.weekday).map((d) => ws + (d.weekday - 1) * 864e5).filter((t) => t <= now && !sameDay(t, now));
-    const missed = planned.filter((t) => !tr.some((s) => sameDay(s.startedAt, t)));
+    const all = sessions.filter((s) => s.endedAt);
+    const missed = planned.filter((t) => !all.some((s) => sameDay(s.startedAt, t)));
     if (missed.length) out.push({ level: 'info', text: `Diese Woche ${missed.length === 1 ? 'fehlt 1 geplante Einheit' : `fehlen ${missed.length} geplante Einheiten`}. Nachholen oder bewusst auslassen?` });
   }
   const order = { warn: 0, good: 1, info: 2 };
@@ -432,4 +433,15 @@ export function blocks(day) {
     else out.push({ group: e.group || '', items: [e] });
   }
   return out;
+}
+
+/** Warm-up-Text ("4–5 Min.: A, B / C") in Dauer + einzelne Übungen zerlegen */
+export function parseWarmup(note) {
+  const text = String(note || '').trim();
+  if (!text) return null;
+  const i = text.indexOf(':');
+  const head = i > 0 ? text.slice(0, i).trim() : '';
+  const body = i > 0 ? text.slice(i + 1) : text;
+  const items = body.split(/\s*(?:,|\s\/\s|;)\s*/).map((x) => x.trim()).filter(Boolean).map((x) => x[0].toUpperCase() + x.slice(1));
+  return { duration: head, items };
 }
