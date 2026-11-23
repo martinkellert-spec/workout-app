@@ -1,26 +1,28 @@
 {
  "name": "Finaler 3er-Plan",
- "version": 2,
+ "version": 3,
  "tests": {
   "everyWeeks": 6,
   "items": [
    {
-    "id": "max-pullups",
-    "name": "Max. Pull-ups",
+    "id": "pullup-max",
+    "name": "Pull-up MAX",
     "type": "reps",
-    "hint": "Aus dem toten Hang, Kinn über die Stange, am Stück ohne Absetzen. Vorher gut aufwärmen."
+    "seconds": 100,
+    "hint": "100 Sekunden so viele saubere Pull-ups wie möglich. Kinn über die Stange, unten voll strecken. Absetzen erlaubt, die Zeit läuft weiter."
    },
    {
-    "id": "max-pushups",
-    "name": "Max. Push-ups",
+    "id": "pushup-max",
+    "name": "Push-up MAX",
     "type": "reps",
-    "hint": "Körper gerade, Brust bis knapp über den Boden, am Stück ohne Pause."
+    "seconds": 100,
+    "hint": "100 Sekunden so viele saubere Push-ups wie möglich. Brust bis knapp über den Boden, Körper gerade."
    },
    {
     "id": "aphrodite",
     "name": "Aphrodite",
     "type": "time",
-    "hint": "Freeletics-Klassiker auf Zeit – Kraftausdauer und Kondition. Saubere Wiederholungen vor Tempo.",
+    "hint": "Freeletics-Workout auf Zeit. Keine Pflichtpausen – Pausen so kurz wie möglich halten, saubere Wiederholungen vor Tempo.",
     "steps": [
      "50 Burpees · 50 Squats · 50 Sit-ups",
      "40 · 40 · 40",
@@ -91,8 +93,24 @@
       12.5,
       15
      ],
-     "rest": 60,
+     "group": "C",
+     "rest": 0,
      "hint": "Gewicht nach Technik (7,5–12,5 kg)"
+    },
+    {
+     "name": "Seitheben",
+     "sets": 2,
+     "repsMin": 12,
+     "repsMax": 15,
+     "weight": 7.5,
+     "weights": [
+      7.5,
+      12.5,
+      15
+     ],
+     "group": "C",
+     "rest": 60,
+     "hint": "Für breite Schultern: kontrolliert bis Schulterhöhe, oben kurz halten"
     },
     {
      "name": "Hanging Knee Raises",
@@ -124,7 +142,9 @@
      "group": "Core",
      "rest": 45
     }
-   ]
+   ],
+   "focus": "Push & Pull + Core",
+   "equipment": "Klimmzugstange, Kurzhanteln, Kettlebell-Griffe"
   },
   {
    "id": "Mi",
@@ -140,9 +160,9 @@
      "rest": 90
     },
     {
-     "name": "Walking Lunges",
+     "name": "Bulgarian Split Squats",
      "sets": 3,
-     "repsMin": 10,
+     "repsMin": 8,
      "repsMax": 12,
      "weight": 7.5,
      "weights": [
@@ -151,29 +171,21 @@
       15
      ],
      "rest": 75,
-     "hint": "Je Seite · Gewicht pro Kurzhantel"
+     "hint": "Je Seite · hinterer Fuß auf Sofa/Bank · Gewicht pro Kurzhantel"
     },
     {
-     "name": "Goblet Tempo Squat",
+     "name": "Hip Thrusts",
      "sets": 3,
-     "repsMin": 12,
+     "repsMin": 10,
      "repsMax": 15,
      "weight": 16,
      "weights": [
       12,
+      15,
       16
      ],
      "rest": 75,
-     "hint": "3 Sek. ablassen"
-    },
-    {
-     "name": "Squat Jumps",
-     "type": "bodyweight",
-     "sets": 3,
-     "repsMin": 6,
-     "repsMax": 8,
-     "rest": 75,
-     "hint": "Explosiv"
+     "hint": "Schultern auf Sofa/Bank, Gewicht auf der Hüfte, oben 1 Sek. halten – Po anspannen, kein Hohlkreuz. Zu leicht? Einbeinig."
     },
     {
      "name": "DB Curls",
@@ -191,13 +203,21 @@
      "hint": "Gewicht pro Kurzhantel"
     },
     {
-     "name": "Enge Push-ups",
-     "type": "bodyweight",
+     "name": "Trizeps Überkopf",
      "sets": 3,
      "repsMin": 10,
      "repsMax": 15,
+     "weight": 12,
+     "weights": [
+      7.5,
+      12,
+      12.5,
+      15,
+      16
+     ],
      "group": "Arme",
-     "rest": 60
+     "rest": 60,
+     "hint": "Eine Kettlebell/Kurzhantel mit beiden Händen hinter dem Kopf, Ellbogen eng"
     },
     {
      "name": "Windshield Wipers",
@@ -230,7 +250,9 @@
      "rest": 45,
      "hint": "Je Seite"
     }
-   ]
+   ],
+   "focus": "Beine & Arme + Core",
+   "equipment": "Klimmzugstange, Kurzhanteln, Kettlebell, Sofa/Bank"
   },
   {
    "id": "Fr",
@@ -397,7 +419,9 @@
      "group": "Core",
      "rest": 0
     }
-   ]
+   ],
+   "focus": "Ganzkörper-Circuit",
+   "equipment": "Klimmzugstange, Kurzhanteln, Kettlebells"
   }
  ],
  "history": [

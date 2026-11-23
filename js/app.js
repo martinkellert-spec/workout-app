@@ -4,15 +4,15 @@ import {
   normalizePlan, normalizeHistory, historyFor, suggest, describePerf, records, newRecords, volume, nextDay,
   weekStart, weeklyStats, streak, fmtNum, fmtDuration, epley, topWeight, unitLabel, nextOpen, supersetNext,
   nextWeight, prevWeight, rirSummary, fmtRir, planDayFor, sameDay, testStatus, testHistory, testDelta,
-  fmtTestValue, fmtTime, insights,
+  fmtTestValue, fmtTime, insights, weekProgress, estimateMinutes, blocks,
 } from './logic.js';
 import { lineChart, barChart } from './charts.js';
 
-export const APP_VERSION = '2.2.0';
+export const APP_VERSION = '3.0.0';
 
 const $app = document.getElementById('app');
 const $tabbar = document.getElementById('tabbar');
-const S = { selDate: null, review: null, testDraft: null, plan: null, sessions: [], draft: null, settings: { restDefault: 90 }, pickDay: null, histTab: 'sessions' };
+const S = { calOffset: 0, selDate: null, review: null, testDraft: null, plan: null, sessions: [], draft: null, settings: { restDefault: 90 }, pickDay: null, histTab: 'sessions' };
 
 const val = (id) => document.getElementById(id)?.value || '';
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -126,27 +126,65 @@ const DAY_SHORT = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
 const dayStart = (ts) => { const d = new Date(ts); d.setHours(0, 0, 0, 0); return d.getTime(); };
 const relDay = (ts) => {
   const diff = Math.round((dayStart(ts) - dayStart(Date.now())) / 864e5);
-  return diff === 0 ? 'Heute' : diff === 1 ? 'Morgen' : diff === -1 ? 'Gestern'
+  const wd = new Date(ts).toLocaleDateString('de-DE', { weekday: 'long' });
+  return diff === 0 ? `Heute · ${wd}` : diff === 1 ? `Morgen · ${wd}` : diff === -1 ? `Gestern · ${wd}`
     : new Date(ts).toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long' });
 };
+const ICON_CLOCK = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="8" cy="8" r="6.2"/><path d="M8 4.8V8l2.2 1.4"/></svg>';
+const ICON_TOOL = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M2 8h12M4 5.5v5M12 5.5v5M2.5 6.8v2.4M13.5 6.8v2.4"/></svg>';
+const ICON_LIST = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M5.5 4.5h8M5.5 8h8M5.5 11.5h8M2.5 4.5h.01M2.5 8h.01M2.5 11.5h.01"/></svg>';
+const ICON_FLAME = '<svg viewBox="0 0 16 16" fill="currentColor"><path d="M8.6 1.2c.3 2.1-.9 3.2-1.9 4.3C5.6 6.7 4.5 7.9 4.5 9.9 4.5 12.2 6.1 14 8.2 14c2.3 0 3.8-1.8 3.8-4.2 0-1.6-.7-2.7-1.4-3.6-.1 1-.6 1.7-1.3 2 .4-2.6-.2-5.2-.7-7z"/></svg>';
+
+function topStats() {
+  const wp = weekProgress(S.plan, S.sessions);
+  const st = streak(S.sessions);
+  const segs = Array.from({ length: Math.max(wp.planned, 1) }, (_, i) => `<i class="${i < wp.done ? 'on' : ''}"></i>`).join('');
+  return `<div class="topstats">
+    <div class="ts"><div class="k">Wochen in Folge</div><div class="v"><span class="flame ${st ? 'on' : ''}">${ICON_FLAME}</span><span class="num">${st}</span></div></div>
+    <div class="ts grow"><div class="k">${wp.done >= wp.planned && wp.planned ? 'Perfekte Woche ✓' : 'Perfekte Woche'}</div><div class="segs">${segs}</div><div class="sub">${wp.done} von ${wp.planned} Einheiten</div></div>
+  </div>`;
+}
 
 function weekStrip(sel) {
   const ws = weekStart(Date.now());
-  return `<div class="weekstrip">${DAY_SHORT.map((l, i) => {
+  return `<div class="wk">${DAY_SHORT.map((l, i) => {
     const d = new Date(ws); d.setDate(d.getDate() + i);
     const t = d.getTime();
     const isDone = S.sessions.some((x) => x.endedAt && sameDay(x.startedAt, t));
     const planned = !!planDayFor(S.plan, t);
-    const cls = [isDone ? 'done' : '', sameDay(t, Date.now()) ? 'today' : '', sel && sameDay(t, sel) ? 'sel' : ''].join(' ');
-    return `<button data-a="selDay" data-t="${t}">${l}<b class="${cls}">${d.getDate()}</b><i class="${planned || isDone ? 'p' : ''} ${isDone ? 'd' : ''}"></i></button>`;
+    const isSel = sel && sameDay(t, sel), isToday = sameDay(t, Date.now());
+    const firstTs = Math.min(...S.sessions.filter((x) => x.endedAt).map((x) => dayStart(x.startedAt)), Infinity);
+    const mk = isDone ? 'done' : planned ? (dayStart(t) < dayStart(Date.now()) ? (t < firstTs ? 'rest' : 'missed') : 'plan') : 'rest';
+    return `<button class="wkd ${isSel ? 'sel' : ''} ${isToday ? 'today' : ''}" data-a="selDay" data-t="${t}">
+      <span class="mk ${mk}">${isDone ? ICON_CHECK : ''}</span><span class="lb">${isSel ? `${d.getDate()}.${d.getMonth() + 1}.` : l}</span></button>`;
   }).join('')}</div>`;
 }
 
-function planPreview(day) {
-  return day.exercises.map((cfg) => {
-    const s = suggest(cfg, historyFor(S.sessions, cfg.key));
-    return `<li><span>${cfg.group ? `<span class="grp">${esc(cfg.group)}</span>` : ''}${esc(cfg.name)}</span><span class="${s.status === 'up' && cfg.type !== 'bodyweight' ? 'up' : ''}">${cfg.sets} × ${s.reps}${cfg.unit === 'sec' ? ' s' : ''} · ${kg(s.weight, cfg.type)}${s.status === 'up' && cfg.type !== 'bodyweight' ? ' ↑' : ''}</span></li>`;
-  }).join('');
+function exLine(cfg) {
+  const s = suggest(cfg, historyFor(S.sessions, cfg.key));
+  const up = s.status === 'up' && cfg.type !== 'bodyweight';
+  return `<div class="exl"><span class="nm">${esc(cfg.name)}</span><span class="vv ${up ? 'up' : ''}">${cfg.sets} × ${s.reps}${cfg.unit === 'sec' ? ' s' : ''}${cfg.type === 'bodyweight' && !s.weight ? '' : ` · ${fmtNum(s.weight)} kg`}${up ? ' ↑' : ''}</span></div>`;
+}
+
+function dayDetail(day, sel) {
+  const past = dayStart(sel) < dayStart(Date.now());
+  const title = day.focus || day.name.split(' – ')[1] || day.name;
+  const bl = blocks(day);
+  return `<div class="dayhead">
+      <div class="eyebrow">${esc(relDay(sel))}${past ? ' · verpasst' : ''}</div>
+      <div class="dtitle">${esc(title)}</div>
+      <div class="dmeta"><span>${ICON_CLOCK}≈ ${estimateMinutes(day, S.settings.restDefault)} Min.</span><span>${ICON_LIST}${day.exercises.length} Übungen</span></div>
+      ${day.equipment ? `<div class="dmeta"><span>${ICON_TOOL}${esc(day.equipment)}</span></div>` : ''}
+    </div>
+    ${day.note ? `<details class="sec"><summary>Warm-up<span class="chev"></span></summary><div class="secbody small">${esc(day.note)}</div></details>` : ''}
+    <details class="sec" open><summary>Workout<span class="chev"></span></summary>
+      <div class="tl">${bl.map((b) => `<div class="blk">
+        ${b.items.length > 1 ? `<div class="blkh">${b.items.length > 2 ? 'Circuit' : 'Supersatz'} · ${Math.max(...b.items.map((e) => e.sets))} Runden</div>` : ''}
+        ${b.items.map((e) => exLine(e)).join('')}
+        ${b.items.length === 1 && b.items[0].hint ? `<div class="hintl">${esc(b.items[0].hint)}</div>` : ''}
+      </div>`).join('')}</div>
+    </details>
+    <div class="cta2"><button class="btn pill glass" data-a="pickOther">Anpassen</button><button class="btn pill primary" data-a="start" data-id="${esc(day.id)}">${past ? 'Nachholen' : 'Starten'}</button></div>`;
 }
 
 function dayCard(sel) {
@@ -155,7 +193,7 @@ function dayCard(sel) {
   if (thatDay.length) {
     return thatDay.map((x) => `<a class="hero done-card" href="#/${x.kind === 'test' ? 'testinfo' : 'session'}/${x.id}">
       <div class="label">${esc(label)} · erledigt ✓</div>
-      <div class="day">${esc(x.dayName)}</div>
+      <div class="day">${esc(x.kind === 'test' ? 'Leistungstest' : (S.plan.days.find((d) => d.id === x.dayId)?.focus || x.dayName))}</div>
       <div class="donerow"><span>${fmtDuration(x.endedAt - x.startedAt)}</span>${x.kind === 'test' ? `<span>${(x.results || []).filter((r) => r.value != null).length} Tests</span>` : `<span>${fmtNum(Math.round(volume(x)))} kg</span>`}${x.rpe ? `<span>RPE ${x.rpe}</span>` : ''}<span class="chev" style="margin-left:auto"></span></div></a>`).join('');
   }
   const day = planDayFor(S.plan, sel);
@@ -163,12 +201,7 @@ function dayCard(sel) {
     return `<div class="hero rest-card"><div class="label" style="color:var(--muted)">${esc(label)}</div><div class="day">Kein Training</div>
       <button class="textlink" style="margin:4px 0 0" data-a="pickOther">Trotzdem trainieren</button></div>`;
   }
-  const past = dayStart(sel) < dayStart(Date.now());
-  return `<div class="hero"><div class="label">${esc(label)}${past ? ' · verpasst' : ''}</div>
-    <div class="day">${esc(day.name)}</div>
-    ${day.note ? `<p class="muted small">${esc(day.note)}</p>` : ''}
-    <ul>${planPreview(day)}</ul>
-    <button class="btn primary big" data-a="start" data-id="${esc(day.id)}">${past ? 'Jetzt nachholen' : 'Training starten'}</button></div>`;
+  return dayDetail(day, sel);
 }
 
 function insightsBlock() {
@@ -184,9 +217,8 @@ function insightsBlock() {
 }
 
 function viewStart() {
-  const head = `<div class="eyebrow" style="color:var(--muted)">${new Date().toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long' })}</div><h1>Diese Woche</h1>`;
   if (!S.plan) {
-    return `${head}
+    return `<h1>Workout</h1>
       <div class="hero"><div class="label">Willkommen</div><div class="day">Noch kein Trainingsplan</div>
       <p class="muted">Lade deinen 3er-Plan mit einem Tipp. Deine bisherigen Trainings werden mit übernommen.</p>
       <button class="btn primary big" data-a="loadMine">Meinen Plan laden</button>
@@ -209,8 +241,8 @@ function viewStart() {
   const testCard = ts?.due && !S.draft && !S.testDraft ? `<div class="hero"><div class="label">${ts.baseline ? 'Startpunkt festhalten' : `Alle ${S.plan.tests.everyWeeks} Wochen`}</div>
       <div class="day">Leistungstest fällig</div>
       <p class="muted small">${S.plan.tests.items.map((t) => esc(t.name)).join(' · ')}. Am besten ausgeruht und statt einer normalen Einheit.</p>
-      <button class="btn big" style="background:var(--surface-2)" data-a="openTest">Test starten</button></div>` : '';
-  return `${head}<div class="card week-card">${weekStrip(sel)}</div>${main}${testCard}${insightsBlock()}`;
+      <button class="btn pill glass" data-a="openTest">Test starten</button></div>` : '';
+  return `${topStats()}${weekStrip(sel)}<div class="daywrap">${main}</div>${testCard}${insightsBlock()}`;
 }
 
 function startTraining(dayId) {
@@ -321,6 +353,12 @@ function tick() {
   }
   const w = document.getElementById('watch');
   if (w && S.testDraft?.watch?.running) w.textContent = fmtTime(watchSeconds(S.testDraft));
+  const cdEl = document.getElementById('cd');
+  if (cdEl && S.testDraft?.cd?.running) {
+    const left = cdLeft(S.testDraft, S.plan.tests.items[S.testDraft.idx]);
+    cdEl.textContent = fmtTime(left);
+    if (left <= 0) { S.testDraft.cd = { done: true }; saveTestDraft(); beep(); render(); }
+  }
   const p = document.getElementById('panel');
   if (!p || !d) return;
   const ask = d.rirAsk && d.exercises[d.rirAsk.ex]?.sets[d.rirAsk.set] ? d.rirAsk : null;
@@ -538,6 +576,10 @@ function newTestDraft() {
 }
 const saveTestDraft = () => db.setMeta('testDraft', S.testDraft);
 
+function cdLeft(d, t) {
+  if (d.cd?.running) return Math.max(0, Math.ceil((d.cd.endsAt - Date.now()) / 1000));
+  return d.cd?.done ? 0 : t.seconds;
+}
 function watchSeconds(d) {
   const w = d.watch;
   if (!w) return d.results[d.idx]?.value || 0;
@@ -565,7 +607,10 @@ function viewTest() {
     : `<button class="btn primary pill" data-a="watchStart">${d.watch ? 'Weiter' : 'Start'}</button>${d.watch ? '<button class="btn pill" style="background:var(--surface-2)" data-a="watchReset">Zurücksetzen</button>' : ''}`}
         </div>
         <button class="textlink" data-a="testEdit">Zeit von Hand eintragen</button></div>`
-    : `<div class="stepper"><button data-a="testMinus">−</button><div class="v"><input id="tv" inputmode="numeric" value="${r.value ?? ''}" placeholder="0"><small>Wiederholungen</small></div><button data-a="testPlus">+</button></div>`;
+    : `${t.seconds ? `<div class="card watch" style="margin-bottom:12px"><div class="num watchtime" id="cd">${fmtTime(cdLeft(d, t))}</div>
+        <div class="row" style="gap:8px;margin-top:14px">${d.cd?.running ? '<button class="btn pill glass" data-a="cdStop">Abbrechen</button>'
+    : `<button class="btn primary pill" data-a="cdStart">${d.cd?.done ? 'Nochmal starten' : `${t.seconds} Sekunden starten`}</button>`}</div>
+        <div class="muted small" style="margin-top:10px">${d.cd?.done ? 'Zeit vorbei – trag deine Wiederholungen ein.' : 'Nach dem Signal die geschafften Wiederholungen eintragen.'}</div></div>` : ''}<div class="stepper"><button data-a="testMinus">−</button><div class="v"><input id="tv" inputmode="numeric" value="${r.value ?? ''}" placeholder="0"><small>Wiederholungen</small></div><button data-a="testPlus">+</button></div>`;
   return `<div class="tbar"><button class="iconbtn" data-a="testMenu" aria-label="Menü">${ICON_X}</button><span class="crumb">Leistungstest</span><span class="time">${d.idx + 1}/${T.items.length}</span></div>
     <div class="xhead"><div><div class="eyebrow">Test ${d.idx + 1} von ${T.items.length}</div><div class="xtitle">${esc(t.name)}</div></div></div>
     <div class="memory"><div class="top"><div><div class="k">${prev ? `Letztes Ergebnis · ${dateLong(prev.date)}` : 'Erster Test'}</div><div class="v">${prev ? fmtTestValue(t, prev.value) : 'Das wird dein Startwert'}</div></div></div>
@@ -610,15 +655,42 @@ function viewReview() {
 }
 
 // ---------- Woche ----------
+function monthCalendar(offset) {
+  const now = new Date();
+  const first = new Date(now.getFullYear(), now.getMonth() + offset, 1);
+  const days = new Date(first.getFullYear(), first.getMonth() + 1, 0).getDate();
+  const lead = (first.getDay() + 6) % 7;
+  const cells = [];
+  const firstTs = Math.min(...S.sessions.filter((x) => x.endedAt).map((x) => dayStart(x.startedAt)), Infinity);
+  for (let i = 0; i < lead; i++) cells.push('<span></span>');
+  for (let dnum = 1; dnum <= days; dnum++) {
+    const t = new Date(first.getFullYear(), first.getMonth(), dnum).getTime();
+    const isDone = S.sessions.some((x) => x.endedAt && sameDay(x.startedAt, t));
+    const planned = !!planDayFor(S.plan, t);
+    const future = dayStart(t) > dayStart(Date.now());
+    const today = sameDay(t, Date.now());
+    const cls = isDone ? 'done' : planned ? (future || today ? 'plan' : t < firstTs ? 'rest' : 'missed') : 'rest';
+    cells.push(cls === 'rest' && !today ? '<span class="cd rest"><i></i></span>'
+      : `<button class="cd ${cls} ${today ? 'today' : ''}" data-a="calDay" data-t="${t}">${dnum}</button>`);
+  }
+  const title = first.toLocaleDateString('de-DE', { month: 'long', year: 'numeric' });
+  return `<div class="card cal">
+    <div class="calh"><button class="iconbtn" data-a="calMonth" data-v="-1" aria-label="Vorheriger Monat">‹</button><b>${title}</b><button class="iconbtn" data-a="calMonth" data-v="1" aria-label="Nächster Monat" ${offset >= 1 ? 'disabled' : ''}>›</button></div>
+    <div class="calgrid wd">${DAY_SHORT.map((l) => `<span>${l}</span>`).join('')}</div>
+    <div class="calgrid">${cells.join('')}</div>
+    <div class="legend cal-legend"><span><i class="lg done"></i>trainiert</span><span><i class="lg plan"></i>geplant</span><span><i class="lg missed"></i>verpasst</span></div>
+  </div>`;
+}
+
 function viewWeek() {
   const st = weeklyStats(S.sessions, 8);
-  const cur = st[st.length - 1];
+  const wp = weekProgress(S.plan, S.sessions);
   const lbl = (w) => { const d = new Date(w.start); return `${d.getDate()}.${d.getMonth() + 1}.`; };
   return `<h1>Woche</h1>
-    <div class="card" style="margin-top:16px">${weekStrip()}</div>
+    ${monthCalendar(S.calOffset || 0)}
     <div class="stats">
-      <div class="stat"><b>${cur.count}</b><span>Trainings diese Woche</span></div>
-      <div class="stat"><b>${streak(S.sessions)}</b><span>Wochen in Folge 🔥</span></div>
+      <div class="stat"><b>${wp.done}/${wp.planned}</b><span>Diese Woche</span></div>
+      <div class="stat"><b>${streak(S.sessions)}</b><span>Wochen in Folge</span></div>
       <div class="stat"><b>${done().length}</b><span>Trainings gesamt</span></div>
     </div>
     <h2>Trainings pro Woche</h2>
@@ -745,6 +817,10 @@ const actions = {
   },
   pickDay: (a) => { S.pickDay = a.dataset.id; render(); },
   selDay: (a) => { S.selDate = +a.dataset.t; render(); },
+  calDay: (a) => { S.selDate = +a.dataset.t; S.calOffset = 0; go('#/'); },
+  calMonth: (a) => { S.calOffset = Math.min(1, (S.calOffset || 0) + +a.dataset.v); render(); },
+  cdStart: () => { const d = S.testDraft, t = S.plan.tests.items[d.idx]; unlockAudio(); d.cd = { running: true, endsAt: Date.now() + t.seconds * 1000 }; saveTestDraft(); render(); },
+  cdStop: () => { S.testDraft.cd = null; saveTestDraft(); render(); },
   pickOther: () => sheet(`<h3>Welches Training?</h3><div class="list">${S.plan.days.map((d) => `<button class="item" data-s="go" data-id="${esc(d.id)}"><span style="flex:1">${esc(d.name)}</span><span class="chev"></span></button>`).join('')}</div>`,
     { go: (b) => { closeSheet(); unlockAudio(); startTraining(b.dataset.id); } }),
   rpe: (a) => {
@@ -777,7 +853,7 @@ const actions = {
     } });
   },
   testPrev: () => {
-    const d = S.testDraft; readTestInput(); d.idx--;
+    const d = S.testDraft; readTestInput(); d.idx--; d.cd = null;
     d.watch = d.results[d.idx].value && d.results[d.idx].type === 'time' ? { acc: d.results[d.idx].value * 1000, since: 0, running: false } : null;
     saveTestDraft(); render();
   },
@@ -786,8 +862,9 @@ const actions = {
     const d = S.testDraft;
     if (d.watch?.running) return toast('Erst die Stoppuhr anhalten');
     if (!skip) readTestInput();
+    if (d.cd?.running) return toast('Erst den Countdown abwarten oder abbrechen');
     if (d.idx < S.plan.tests.items.length - 1) {
-      d.idx++;
+      d.idx++; d.cd = null;
       d.watch = d.results[d.idx].value && d.results[d.idx].type === 'time' ? { acc: d.results[d.idx].value * 1000, since: 0, running: false } : null;
       saveTestDraft(); render(); window.scrollTo(0, 0); return;
     }

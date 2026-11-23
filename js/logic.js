@@ -41,6 +41,7 @@ export function normalizePlan(raw) {
         lowerIsBetter: x.type === 'time' ? x.lowerIsBetter !== false : !!x.lowerIsBetter,
         hint: x.hint ? String(x.hint) : '',
         steps: Array.isArray(x.steps) ? x.steps.map(String) : [],
+        seconds: Number(x.seconds) || 0,
       })),
     } : null,
     days: raw.days.map((d, i) => {
@@ -50,6 +51,8 @@ export function normalizePlan(raw) {
         id: String(d.id ?? String.fromCharCode(65 + i)),
         name: String(d.name || `Tag ${String.fromCharCode(65 + i)}`),
         note: d.note ? String(d.note) : '',
+        focus: d.focus ? String(d.focus) : '',
+        equipment: d.equipment ? String(d.equipment) : '',
         weekday: inferWeekday(d),
         exercises: d.exercises.map((e, j) => {
           if (!e.name) throw new Error(`Übung ${j + 1} an Tag ${i + 1} hat keinen Namen.`);
@@ -399,4 +402,34 @@ export function insights(plan, sessions, now = Date.now()) {
   }
   const order = { warn: 0, good: 1, info: 2 };
   return out.sort((a, b) => order[a.level] - order[b.level]).slice(0, 4);
+}
+
+/** Geschätzte Dauer eines Trainingstags in Minuten (Warm-up + Sätze + Pausen) */
+export function estimateMinutes(day, restDefault = 90) {
+  let sec = day.note ? 5 * 60 : 0;
+  for (const e of day.exercises) {
+    const work = e.unit === 'sec' ? e.repsMax : e.repsMax * 3.5 + 10;
+    const rest = e.rest ?? restDefault;
+    sec += e.sets * (work + rest);
+  }
+  return Math.round(sec / 60 / 5) * 5;
+}
+
+/** Fortschritt der aktuellen Woche: geplante Einheiten vs. erledigte Trainingstage */
+export function weekProgress(plan, sessions, now = Date.now()) {
+  const ws = weekStart(now), we = ws + 7 * 864e5;
+  const planned = plan ? plan.days.filter((d) => (d.weekday ?? inferWeekday(d))).length : 0;
+  const days = new Set(sessions.filter((s) => s.endedAt && s.startedAt >= ws && s.startedAt < we).map((s) => new Date(s.startedAt).toDateString()));
+  return { planned, done: Math.min(days.size, Math.max(planned, days.size)) };
+}
+
+/** Übungen eines Tags zu Blöcken zusammenfassen (Supersatz/Circuit = gleiche Gruppe hintereinander) */
+export function blocks(day) {
+  const out = [];
+  for (const e of day.exercises) {
+    const last = out[out.length - 1];
+    if (e.group && last && last.group === e.group) last.items.push(e);
+    else out.push({ group: e.group || '', items: [e] });
+  }
+  return out;
 }

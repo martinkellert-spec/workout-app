@@ -148,6 +148,18 @@ t('Hinweise werden zusammengefasst', () => {
   eq([r.length, r[0].text.startsWith('3 Übungen zuletzt komplett am Limit')], [1, true]);
 });
 
+t('Blöcke und Dauer', () => {
+  const plan = L.normalizePlan({ days: [{ id: 'Mo', note: 'WU', exercises: [{ name: 'A', group: 'X', sets: 3, reps: 10, rest: 0 }, { name: 'B', group: 'X', sets: 3, reps: 10, rest: 60 }, { name: 'C', sets: 2, reps: 10 }] }] });
+  eq(L.blocks(plan.days[0]).map((b) => b.items.length), [2, 1]);
+  eq(L.estimateMinutes(plan.days[0]) > 5, true);
+});
+t('Wochenfortschritt', () => {
+  const plan = L.normalizePlan({ days: [{ id: 'Mo', exercises: [{ name: 'A' }] }, { id: 'Mi', exercises: [{ name: 'B' }] }] });
+  const now = new Date(2026, 10, 25, 12).getTime();
+  const s = (d) => ({ startedAt: new Date(2026, 10, d, 18).getTime(), endedAt: 1 });
+  eq(L.weekProgress(plan, [s(23), s(23), s(18)], now), { planned: 2, done: 1 });
+});
+
 out.insertAdjacentHTML('afterbegin', `<h2 id="summary" class="${fail ? 'fail' : 'ok'}">${pass} bestanden, ${fail} fehlgeschlagen</h2>`);
 </script>
 </body>
