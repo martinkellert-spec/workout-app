@@ -6,7 +6,7 @@ import {
 } from './logic.js';
 import { lineChart, barChart } from './charts.js';
 
-export const APP_VERSION = '1.2.0';
+export const APP_VERSION = '1.2.1';
 
 const $app = document.getElementById('app');
 const $tabbar = document.getElementById('tabbar');
