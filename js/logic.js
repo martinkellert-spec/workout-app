@@ -30,6 +30,8 @@ export function normalizePlan(raw) {
   const t = raw.tests;
   return {
     name: String(raw.name || 'Mein Plan'),
+    version: Number(raw.version) || 0,
+    source: raw.source ? String(raw.source) : '',
     tests: t && Array.isArray(t.items) && t.items.length ? {
       everyWeeks: Number(t.everyWeeks) || 6,
       items: t.items.map((x, i) => ({
@@ -310,7 +312,7 @@ export const sameDay = (a, b) => new Date(a).toDateString() === new Date(b).toDa
 /** Plan-Tag für ein Datum (über den Wochentag), sonst null */
 export function planDayFor(plan, ts) {
   const wd = ((new Date(ts).getDay() + 6) % 7) + 1;
-  return plan?.days.find((d) => d.weekday === wd) || null;
+  return plan?.days.find((d) => (d.weekday ?? inferWeekday(d)) === wd) || null;
 }
 
 // ---------- Leistungstests ----------

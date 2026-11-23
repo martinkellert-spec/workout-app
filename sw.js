@@ -1,5 +1,5 @@
 // Bei jeder Änderung an den App-Dateien VERSION erhöhen → iPhone lädt die neue Version.
-const VERSION = 'v2.1.1';
+const VERSION = 'v2.2.0';
 const CACHE = `workout-${VERSION}`;
 const FILES = [
   './', 'index.html', 'manifest.webmanifest', 'css/app.css',
@@ -25,7 +25,9 @@ const DEV = ['localhost', '127.0.0.1'].includes(location.hostname);
 self.addEventListener('fetch', (e) => {
   if (e.request.method !== 'GET' || new URL(e.request.url).origin !== location.origin) return;
   const cached = () => caches.match(e.request, { ignoreSearch: true });
-  e.respondWith(DEV
+  // Pläne immer frisch holen (damit Planänderungen sofort ankommen), offline aus dem Cache
+  const fresh = DEV || new URL(e.request.url).pathname.includes('/plans/');
+  e.respondWith(fresh
     ? fetch(e.request).catch(cached)
     : cached().then((hit) => hit || fetch(e.request)));
 });

@@ -8,7 +8,7 @@ import {
 } from './logic.js';
 import { lineChart, barChart } from './charts.js';
 
-export const APP_VERSION = '2.1.1';
+export const APP_VERSION = '2.2.0';
 
 const $app = document.getElementById('app');
 const $tabbar = document.getElementById('tabbar');
@@ -85,6 +85,8 @@ document.addEventListener('visibilitychange', () => { if (document.visibilitySta
 // ---------- Daten laden ----------
 async function load() {
   [S.plan, S.sessions, S.draft] = await Promise.all([db.getMeta('plan'), db.allSessions(), db.getMeta('draft')]);
+  // Gespeicherten Plan mit aktueller Logik neu einlesen (ergänzt z. B. Wochentage bei alten Plänen)
+  if (S.plan) { try { S.plan = normalizePlan(S.plan); } catch { /* alter Plan bleibt */ } }
   S.settings = { ...S.settings, ...((await db.getMeta('settings')) || {}) };
   S.sync = await sync.getConfig();
   S.review = (await db.getMeta('review')) || null;
@@ -689,7 +691,17 @@ async function readFile(input) {
   });
 }
 
-async function setPlan(raw) {
+// Eigener Plan: wird automatisch aktualisiert, wenn plans/mein-plan.json eine höhere "version" hat
+const MY_PLAN = 'plans/mein-plan.json';
+async function autoUpdateMyPlan() {
+  if (!S.plan || !(S.plan.source === 'mine' || S.plan.name === 'Finaler 3er-Plan')) return;
+  try {
+    const raw = await (await fetch(MY_PLAN, { cache: 'no-store' })).json();
+    if ((Number(raw.version) || 0) > (S.plan.version || 0)) await setPlan({ ...raw, source: 'mine' }, { quiet: true });
+  } catch { /* offline – später erneut */ }
+}
+
+async function setPlan(raw, opts = {}) {
   try {
     const plan = normalizePlan(raw);
     const hist = normalizeHistory(raw.history, plan);
@@ -704,6 +716,7 @@ async function setPlan(raw) {
       if (!old) added++;
     }
     S.pickDay = null;
+    if (opts.quiet) { toast('Trainingsplan aktualisiert'); render(); backupSoon(); return; }
     toast(added ? `Plan geladen + ${added} Trainings übernommen` : `Plan „${S.plan.name}“ geladen`);
     go('#/');
     backupSoon();
@@ -725,7 +738,7 @@ async function exportBackup() {
 // ---------- Aktionen ----------
 const actions = {
   loadExample: async () => setPlan(await (await fetch('plans/beispiel.json')).json()),
-  loadMine: async () => setPlan(await (await fetch('plans/mein-plan.json')).json()),
+  loadMine: async () => setPlan({ ...(await (await fetch(MY_PLAN, { cache: 'no-store' })).json()), source: 'mine' }),
   importPlan: async () => {
     const txt = await readFile(document.getElementById('filePlan'));
     try { await setPlan(JSON.parse(txt)); } catch { setPlan(null); }
@@ -992,6 +1005,7 @@ function registerSW() {
   registerSW();
   sync.autoRetry();
   refreshReview();
+  autoUpdateMyPlan();
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') refreshReview(); });
   if (S.draft && location.hash.startsWith('#/train')) keepAwake(true);
 })();
