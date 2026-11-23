@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="de">
+<head><meta charset="utf-8"><title>Logik-Tests</title>
+<style>body{font:14px system-ui;padding:16px}.ok{color:green}.fail{color:#c00;font-weight:bold}</style></head>
+<body>
+<h1>Logik-Tests</h1>
+<div id="out"></div>
+<script type="module">
+import * as L from '../js/logic.js';
+const out = document.getElementById('out');
+let pass = 0, fail = 0;
+function t(name, fn) {
+  try { fn(); pass++; out.insertAdjacentHTML('beforeend', `<div class="ok">✓ ${name}</div>`); }
+  catch (e) { fail++; out.insertAdjacentHTML('beforeend', `<div class="fail">✗ ${name}: ${e.message}</div>`); }
+}
+const eq = (a, b) => { if (JSON.stringify(a) !== JSON.stringify(b)) throw new Error(`erwartet ${JSON.stringify(b)}, war ${JSON.stringify(a)}`); };
+const cfg = { key: 'bank', name: 'Bank', type: 'weight', sets: 3, repsMin: 8, repsMax: 12, weight: 50, increment: 2.5, rest: 90 };
+const perf = (w, reps) => ({ sets: reps.map((r) => ({ weight: w, reps: r, done: true })) });
+const ses = (t, dayId, exs, planName = 'P') => ({ id: String(t), startedAt: t, endedAt: t + 1, dayId, planName, exercises: exs });
+
+t('slug', () => eq(L.slug('Bankdrücken (Kurzhantel)'), 'bankdrucken-kurzhantel'));
+t('Startwerte ohne Historie', () => { const s = L.suggest(cfg, []); eq([s.weight, s.reps, s.status], [50, 8, 'new']); });
+t('Steigerung bei 3×12', () => { const s = L.suggest(cfg, [perf(60, [12, 12, 12])]); eq([s.weight, s.reps, s.status], [62.5, 8, 'up']); });
+t('Gleiches Gewicht, +1 Wdh.', () => { const s = L.suggest(cfg, [perf(60, [10, 9, 9])]); eq([s.weight, s.reps, s.status], [60, 10, 'same']); });
+t('Nicht alle Sätze geschafft → keine Steigerung', () => { const s = L.suggest(cfg, [perf(60, [12, 12])]); eq(s.status, 'same'); });
+t('Ziel nie über repsMax', () => { const s = L.suggest(cfg, [perf(60, [12, 12, 11])]); eq(s.reps, 12); });
+t('Reduzieren nach 2× unter Bereich', () => { const s = L.suggest(cfg, [perf(60, [7, 6, 6]), perf(60, [7, 7, 6])]); eq([s.status, s.lighter], ['down', 57.5]); });
+t('Kein Reduzieren bei anderem Gewicht davor', () => { const s = L.suggest(cfg, [perf(60, [7, 6, 6]), perf(57.5, [7, 7, 6])]); eq(s.status, 'same'); });
+t('Körpergewicht: +1 Wdh.', () => { const s = L.suggest({ ...cfg, type: 'bodyweight' }, [perf(0, [10, 8, 8])]); eq([s.weight, s.reps], [0, 9]); });
+t('describePerf gleich', () => eq(L.describePerf(perf(60, [10, 10, 10])), '3×10 @ 60 kg'));
+t('describePerf Wdh. unterschiedlich', () => eq(L.describePerf(perf(62.5, [10, 9, 8])), '10/9/8 @ 62,5 kg'));
+t('historyFor sortiert neueste zuerst & ignoriert offene', () => {
+  const ss = [ses(1, 'A', [{ key: 'bank', ...perf(50, [8]) }]), ses(3, 'A', [{ key: 'bank', ...perf(55, [8]) }]), { ...ses(5, 'A', [{ key: 'bank', ...perf(99, [8]) }]), endedAt: null }];
+  eq(L.historyFor(ss, 'bank').map((h) => h.sets[0].weight), [55, 50]);
+});
+t('Nicht erledigte Sätze zählen nicht', () => { const p = { sets: [{ weight: 60, reps: 12, done: true }, { weight: 100, reps: 12, done: false }] }; eq(L.topWeight(p), 60); });
+t('Epley', () => eq(Math.round(L.epley(100, 10)), 133));
+t('Neue Rekorde', () => {
+  const prev = [ses(1, 'A', [{ key: 'bank', name: 'Bank', ...perf(60, [10]) }])];
+  const cur = ses(2, 'A', [{ key: 'bank', name: 'Bank', ...perf(62.5, [8]) }]);
+  eq(L.newRecords(cur, prev).length, 1);
+  eq(L.newRecords(prev[0], []).length, 0);
+});
+t('Rotation', () => {
+  const plan = { name: 'P', days: [{ id: 'A' }, { id: 'B' }, { id: 'C' }] };
+  eq(L.nextDay(plan, []).id, 'A');
+  eq(L.nextDay(plan, [ses(1, 'A', []), ses(2, 'B', [])]).id, 'C');
+  eq(L.nextDay(plan, [ses(1, 'C', [])]).id, 'A');
+});
+t('Wochenstart Montag', () => { const d = new Date(L.weekStart(new Date(2026, 10, 26).getTime())); eq([d.getDay(), d.getDate()], [1, 23]); });
+t('Streak', () => {
+  const now = new Date(2026, 10, 25).getTime(), wk = 7 * 864e5;
+  eq(L.streak([ses(now - wk, 'A', []), ses(now - 2 * wk, 'A', [])], now), 2);
+  eq(L.streak([ses(now, 'A', []), ses(now - wk, 'A', [])], now), 2);
+  eq(L.streak([ses(now - 3 * wk, 'A', [])], now), 0);
+});
+t('Plan normalisieren', () => {
+  const p = L.normalizePlan({ days: [{ name: 'X', exercises: [{ name: 'Klimmzüge', type: 'bodyweight', reps: 8 }] }] });
+  eq([p.days[0].id, p.days[0].exercises[0].key, p.days[0].exercises[0].repsMax, p.days[0].exercises[0].type], ['A', 'klimmzuge', 8, 'bodyweight']);
+});
+t('Plan ohne Tage → Fehler', () => { let ok = false; try { L.normalizePlan({}); } catch { ok = true; } eq(ok, true); });
+
+t('Equipment: nächstes verfügbares Gewicht', () => { const c = { ...cfg, weights: [7.5, 12.5, 15] }; const s = L.suggest(c, [perf(7.5, [12, 12, 12])]); eq([s.weight, s.status], [12.5, 'up']); });
+t('Equipment: schwerstes erreicht → max', () => { const c = { ...cfg, weights: [7.5, 12.5, 15] }; const s = L.suggest(c, [perf(15, [12, 12, 12])]); eq([s.weight, s.reps, s.status], [15, 12, 'max']); });
+t('Körpergewicht: obere Grenze → max', () => { const s = L.suggest({ ...cfg, type: 'bodyweight', repsMax: 6 }, [perf(0, [6, 6, 6])]); eq(s.status, 'max'); });
+t('Sekunden in describePerf', () => eq(L.describePerf(perf(0, [45, 45, 45]), 'bodyweight', 'sec'), '3×45 s @ KG'));
+t('rest: fehlt → null, 0 bleibt 0', () => {
+  const p = L.normalizePlan({ days: [{ exercises: [{ name: 'X' }, { name: 'Y', rest: 0 }] }] });
+  eq([p.days[0].exercises[0].rest, p.days[0].exercises[1].rest], [null, 0]);
+});
+const mk = (g, n, doneN = 0) => ({ group: g, sets: Array.from({ length: n }, (_, i) => ({ done: i < doneN })) });
+t('Supersatz: A1 → B1 → A2', () => {
+  eq(L.supersetNext([mk('A', 3, 1), mk('A', 3, 0)], 0), 1);
+  eq(L.supersetNext([mk('A', 3, 1), mk('A', 3, 1)], 1), 0);
+});
+t('Circuit mit 3 Übungen', () => {
+  eq(L.supersetNext([mk('C', 3, 1), mk('C', 3, 1), mk('C', 3, 0)], 1), 2);
+  eq(L.supersetNext([mk('C', 3, 1), mk('C', 3, 1), mk('C', 3, 1)], 2), 0);
+});
+t('Supersatz fertig → bleibt', () => eq(L.supersetNext([mk('A', 2, 2), mk('A', 2, 2), mk('', 3)], 1), 1));
+t('Ohne Gruppe → bleibt', () => eq(L.supersetNext([mk('', 3, 1), mk('', 3)], 0), 0));
+t('nextOpen', () => {
+  eq(L.nextOpen([mk('', 2, 2), mk('', 2, 2), mk('', 2, 0)], 0), 2);
+  eq(L.nextOpen([mk('', 2, 0), mk('', 2, 2)], 1), 0);
+  eq(L.nextOpen([mk('', 2, 2)], 0), -1);
+});
+t('Log-Import', () => {
+  const plan = L.normalizePlan({ name: 'P', days: [{ id: 'Mo', name: 'Montag', exercises: [{ name: 'Prone Cobra', type: 'bodyweight', unit: 'sec', reps: 45 }] }] });
+  const h = L.normalizeHistory([{ date: '2026-11-23T18:00:00', dayId: 'Mo', durationMin: 35, exercises: [{ name: 'Prone Cobra', weight: 0, sets: [45, 45] }] }], plan);
+  eq([h[0].dayName, h[0].exercises[0].unit, h[0].exercises[0].sets.length, h[0].endedAt - h[0].startedAt], ['Montag', 'sec', 2, 35 * 60000]);
+});
+
+out.insertAdjacentHTML('afterbegin', `<h2 id="summary" class="${fail ? 'fail' : 'ok'}">${pass} bestanden, ${fail} fehlgeschlagen</h2>`);
+</script>
+</body>
+</html>
