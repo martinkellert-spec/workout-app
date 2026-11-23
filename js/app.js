@@ -6,7 +6,7 @@ import {
 } from './logic.js';
 import { lineChart, barChart } from './charts.js';
 
-export const APP_VERSION = '1.1.1';
+export const APP_VERSION = '1.2.0';
 
 const $app = document.getElementById('app');
 const $tabbar = document.getElementById('tabbar');
@@ -135,9 +135,10 @@ function viewStart() {
   if (!S.plan) {
     return `<h1>Workout</h1>
       <div class="hero"><div class="label">Willkommen</div><div class="day">Noch kein Trainingsplan</div>
-      <p class="muted">Importiere deinen Plan als JSON-Datei oder probier die App mit dem Beispielplan aus.</p>
-      <button class="btn primary big" data-a="loadExample">Beispielplan laden</button>
-      <button class="btn" data-a="importPlan">Plan importieren</button></div>`;
+      <p class="muted">Lade deinen 3er-Plan mit einem Tipp. Deine bisherigen Trainings werden mit übernommen.</p>
+      <button class="btn primary big" data-a="loadMine">Meinen Plan laden</button>
+      <button class="btn" data-a="loadExample">Beispielplan ausprobieren</button>
+      <button class="btn ghost" data-a="importPlan">Plan-Datei importieren</button></div>`;
   }
   if (S.draft) {
     const d = S.draft, n = d.exercises.reduce((a, e) => a + e.sets.filter((s) => s.done).length, 0);
@@ -437,7 +438,8 @@ function viewSettings() {
     <h2>Trainingsplan</h2>
     ${p ? `<div class="card"><b>${esc(p.name)}</b><div class="muted small">${p.days.length} Trainingstage</div></div>
       <div class="list">${p.days.map((d) => `<div class="item" style="display:block"><b>${esc(d.name)}</b><div class="muted small">${d.exercises.map((e) => `${esc(e.name)} ${e.sets}×${e.repsMin === e.repsMax ? e.repsMin : `${e.repsMin}–${e.repsMax}`}${e.unit === 'sec' ? ' s' : ''}`).join(' · ')}</div></div>`).join('')}</div>` : '<div class="card muted">Noch kein Plan geladen.</div>'}
-    <button class="btn" data-a="importPlan">Plan importieren (JSON)</button>
+    <button class="btn" data-a="loadMine">Meinen Plan neu laden</button>
+    <button class="btn" data-a="importPlan">Plan-Datei importieren (JSON)</button>
     <button class="btn" data-a="loadExample">Beispielplan laden</button>
     <h2>Pausentimer</h2>
     <div class="card row"><div class="grow">Standard-Pause (wenn der Plan keine vorgibt):</div>
@@ -493,6 +495,7 @@ async function exportBackup() {
 // ---------- Aktionen ----------
 const actions = {
   loadExample: async () => setPlan(await (await fetch('plans/beispiel.json')).json()),
+  loadMine: async () => setPlan(await (await fetch('plans/mein-plan.json')).json()),
   importPlan: async () => {
     const txt = await readFile(document.getElementById('filePlan'));
     try { await setPlan(JSON.parse(txt)); } catch { setPlan(null); }

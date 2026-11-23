@@ -1,0 +1,530 @@
+{
+ "name": "Finaler 3er-Plan",
+ "days": [
+  {
+   "id": "Mo",
+   "name": "Montag – Brust/Rücken/Core",
+   "note": "4–5 Min.: Scapular Pull-ups, Scapular Push-ups, Wall Slides, lockere Pull-ups & Push-ups",
+   "exercises": [
+    {
+     "name": "Pull-ups",
+     "type": "bodyweight",
+     "sets": 3,
+     "repsMin": 4,
+     "repsMax": 6,
+     "group": "A",
+     "rest": 0
+    },
+    {
+     "name": "Deficit Push-ups",
+     "type": "bodyweight",
+     "sets": 3,
+     "repsMin": 10,
+     "repsMax": 15,
+     "group": "A",
+     "rest": 90,
+     "hint": "Auf KB-Griffen"
+    },
+    {
+     "name": "DB Rows",
+     "sets": 3,
+     "repsMin": 10,
+     "repsMax": 15,
+     "weight": 15,
+     "weights": [
+      7.5,
+      12.5,
+      15
+     ],
+     "group": "B",
+     "rest": 0,
+     "hint": "Gewicht pro Kurzhantel"
+    },
+    {
+     "name": "Feet-elevated Push-ups",
+     "type": "bodyweight",
+     "sets": 3,
+     "repsMin": 8,
+     "repsMax": 15,
+     "group": "B",
+     "rest": 90
+    },
+    {
+     "name": "Rear Delt Rows",
+     "sets": 2,
+     "repsMin": 12,
+     "repsMax": 15,
+     "weight": 7.5,
+     "weights": [
+      7.5,
+      12.5,
+      15
+     ],
+     "rest": 60,
+     "hint": "Gewicht nach Technik (7,5–12,5 kg)"
+    },
+    {
+     "name": "Hanging Knee Raises",
+     "type": "bodyweight",
+     "sets": 3,
+     "repsMin": 10,
+     "repsMax": 12,
+     "group": "Core",
+     "rest": 0,
+     "hint": "Core-Circuit, 2–3 Runden"
+    },
+    {
+     "name": "Dead Bugs",
+     "type": "bodyweight",
+     "sets": 3,
+     "repsMin": 8,
+     "repsMax": 10,
+     "group": "Core",
+     "rest": 0,
+     "hint": "Je Seite"
+    },
+    {
+     "name": "Prone Cobra",
+     "type": "bodyweight",
+     "unit": "sec",
+     "sets": 3,
+     "repsMin": 40,
+     "repsMax": 45,
+     "group": "Core",
+     "rest": 45
+    }
+   ]
+  },
+  {
+   "id": "Mi",
+   "name": "Mittwoch – Beine/Arme/Core",
+   "note": "4–5 Min.: Air Squats, Reverse Lunges, Glute Bridges, Hip Hinges, lockere Chin-ups",
+   "exercises": [
+    {
+     "name": "Chin-ups",
+     "type": "bodyweight",
+     "sets": 3,
+     "repsMin": 5,
+     "repsMax": 8,
+     "rest": 90
+    },
+    {
+     "name": "Walking Lunges",
+     "sets": 3,
+     "repsMin": 10,
+     "repsMax": 12,
+     "weight": 7.5,
+     "weights": [
+      7.5,
+      12.5,
+      15
+     ],
+     "rest": 75,
+     "hint": "Je Seite · Gewicht pro Kurzhantel"
+    },
+    {
+     "name": "Goblet Tempo Squat",
+     "sets": 3,
+     "repsMin": 12,
+     "repsMax": 15,
+     "weight": 16,
+     "weights": [
+      12,
+      16
+     ],
+     "rest": 75,
+     "hint": "3 Sek. ablassen"
+    },
+    {
+     "name": "Squat Jumps",
+     "type": "bodyweight",
+     "sets": 3,
+     "repsMin": 6,
+     "repsMax": 8,
+     "rest": 75,
+     "hint": "Explosiv"
+    },
+    {
+     "name": "DB Curls",
+     "sets": 3,
+     "repsMin": 10,
+     "repsMax": 15,
+     "weight": 7.5,
+     "weights": [
+      7.5,
+      12.5,
+      15
+     ],
+     "group": "Arme",
+     "rest": 0,
+     "hint": "Gewicht pro Kurzhantel"
+    },
+    {
+     "name": "Enge Push-ups",
+     "type": "bodyweight",
+     "sets": 3,
+     "repsMin": 10,
+     "repsMax": 15,
+     "group": "Arme",
+     "rest": 60
+    },
+    {
+     "name": "Windshield Wipers",
+     "type": "bodyweight",
+     "sets": 3,
+     "repsMin": 8,
+     "repsMax": 10,
+     "group": "Core",
+     "rest": 0,
+     "hint": "Je Seite · Core-Circuit, 2–3 Runden"
+    },
+    {
+     "name": "Side Plank",
+     "type": "bodyweight",
+     "unit": "sec",
+     "sets": 3,
+     "repsMin": 30,
+     "repsMax": 45,
+     "group": "Core",
+     "rest": 0,
+     "hint": "Je Seite"
+    },
+    {
+     "name": "Bird Dogs",
+     "type": "bodyweight",
+     "sets": 3,
+     "repsMin": 8,
+     "repsMax": 10,
+     "group": "Core",
+     "rest": 45,
+     "hint": "Je Seite"
+    }
+   ]
+  },
+  {
+   "id": "Fr",
+   "name": "Freitag – Full Body Flow",
+   "note": "Ca. 4 Min. kurzes Ganzkörper-Warm-up",
+   "exercises": [
+    {
+     "name": "Pull-ups",
+     "type": "bodyweight",
+     "sets": 3,
+     "repsMin": 5,
+     "repsMax": 6,
+     "group": "A",
+     "rest": 0,
+     "hint": "Alternativ Chin-ups"
+    },
+    {
+     "name": "Push-ups",
+     "type": "bodyweight",
+     "sets": 3,
+     "repsMin": 12,
+     "repsMax": 15,
+     "group": "A",
+     "rest": 0
+    },
+    {
+     "name": "Walking Lunges",
+     "sets": 3,
+     "repsMin": 8,
+     "repsMax": 10,
+     "weight": 7.5,
+     "weights": [
+      7.5,
+      12.5,
+      15
+     ],
+     "group": "A",
+     "rest": 60,
+     "hint": "Je Seite · moderat"
+    },
+    {
+     "name": "DB Rows",
+     "sets": 3,
+     "repsMin": 10,
+     "repsMax": 15,
+     "weight": 15,
+     "weights": [
+      7.5,
+      12.5,
+      15
+     ],
+     "group": "B",
+     "rest": 0,
+     "hint": "Gewicht pro Kurzhantel"
+    },
+    {
+     "name": "Shoulder Press",
+     "sets": 3,
+     "repsMin": 6,
+     "repsMax": 10,
+     "weight": 12.5,
+     "weights": [
+      7.5,
+      12.5,
+      15
+     ],
+     "group": "B",
+     "rest": 0,
+     "hint": "Gewicht pro Kurzhantel"
+    },
+    {
+     "name": "Seitheben",
+     "sets": 3,
+     "repsMin": 10,
+     "repsMax": 15,
+     "weight": 7.5,
+     "weights": [
+      7.5,
+      12.5,
+      15
+     ],
+     "group": "B",
+     "rest": 75,
+     "hint": "Oder Band"
+    },
+    {
+     "name": "Rear Delt Rows",
+     "sets": 2,
+     "repsMin": 12,
+     "repsMax": 15,
+     "weight": 7.5,
+     "weights": [
+      7.5,
+      12.5,
+      15
+     ],
+     "group": "C",
+     "rest": 0
+    },
+    {
+     "name": "DB Curls",
+     "sets": 2,
+     "repsMin": 12,
+     "repsMax": 15,
+     "weight": 7.5,
+     "weights": [
+      7.5,
+      12.5,
+      15
+     ],
+     "group": "C",
+     "rest": 0
+    },
+    {
+     "name": "Enge Push-ups",
+     "type": "bodyweight",
+     "sets": 2,
+     "repsMin": 10,
+     "repsMax": 15,
+     "group": "C",
+     "rest": 0
+    },
+    {
+     "name": "Farmer Carry",
+     "unit": "sec",
+     "sets": 2,
+     "repsMin": 45,
+     "repsMax": 60,
+     "weight": 16,
+     "weights": [
+      12,
+      16
+     ],
+     "group": "C",
+     "rest": 60,
+     "hint": "2 Kettlebells · Gewicht pro Kettlebell"
+    },
+    {
+     "name": "Hanging Knee Raises",
+     "type": "bodyweight",
+     "sets": 2,
+     "repsMin": 10,
+     "repsMax": 12,
+     "group": "Core",
+     "rest": 0,
+     "hint": "Kurzer Abschluss"
+    },
+    {
+     "name": "Bird Dogs",
+     "type": "bodyweight",
+     "sets": 2,
+     "repsMin": 8,
+     "repsMax": 10,
+     "group": "Core",
+     "rest": 0,
+     "hint": "Je Seite"
+    },
+    {
+     "name": "Prone Cobra",
+     "type": "bodyweight",
+     "unit": "sec",
+     "sets": 2,
+     "reps": 45,
+     "group": "Core",
+     "rest": 0
+    }
+   ]
+  }
+ ],
+ "history": [
+  {
+   "id": "log-2026-11-18",
+   "date": "2026-11-18T18:00:00",
+   "dayId": "Mi",
+   "durationMin": 47,
+   "note": "Core-Circuit 2 Runden (Windshield Wipers, Side Plank, Bird Dogs)",
+   "exercises": [
+    {
+     "name": "Chin-ups",
+     "weight": 0,
+     "sets": [
+      5,
+      5,
+      5
+     ],
+     "note": "RIR 1–2"
+    },
+    {
+     "name": "Walking Lunges",
+     "weight": 7.5,
+     "sets": [
+      12,
+      12,
+      12
+     ],
+     "note": "Je Seite · RIR 1–2"
+    },
+    {
+     "name": "Goblet Tempo Squat",
+     "weight": 16,
+     "sets": [
+      12,
+      12,
+      12
+     ],
+     "note": "3 Sek. ablassen · RIR 1–2"
+    },
+    {
+     "name": "Squat Jumps",
+     "weight": 0,
+     "sets": [
+      8,
+      8,
+      8
+     ],
+     "note": "RIR 2–3 · letzte Wdh. deutlich schwerer"
+    },
+    {
+     "name": "DB Curls",
+     "weight": 7.5,
+     "sets": [
+      14,
+      14,
+      14
+     ],
+     "note": "RIR 2–4 · Superset mit engen Push-ups"
+    },
+    {
+     "name": "Enge Push-ups",
+     "weight": 0,
+     "sets": [
+      12,
+      12,
+      12
+     ],
+     "note": "RIR 2–4"
+    }
+   ]
+  },
+  {
+   "id": "log-2026-11-23",
+   "date": "2026-11-23T18:00:00",
+   "dayId": "Mo",
+   "durationMin": 35,
+   "note": "",
+   "exercises": [
+    {
+     "name": "Pull-ups",
+     "weight": 0,
+     "sets": [
+      5,
+      5,
+      5
+     ],
+     "note": "RIR 1–2"
+    },
+    {
+     "name": "Deficit Push-ups",
+     "weight": 0,
+     "sets": [
+      12,
+      12,
+      12
+     ],
+     "note": "RIR 1–2"
+    },
+    {
+     "name": "DB Rows",
+     "weight": 15,
+     "sets": [
+      12,
+      12,
+      12
+     ],
+     "note": "RIR 1–2"
+    },
+    {
+     "name": "Feet-elevated Push-ups",
+     "weight": 0,
+     "sets": [
+      8,
+      9,
+      11
+     ],
+     "note": "Nahe am Limit, nicht bis zum Versagen"
+    },
+    {
+     "name": "Rear Delt Rows",
+     "weight": 7.5,
+     "sets": [
+      12,
+      12
+     ],
+     "note": "RIR 1–2 · Gewicht nicht protokolliert, 7,5 kg angenommen"
+    },
+    {
+     "name": "Hanging Knee Raises",
+     "weight": 0,
+     "sets": [
+      12,
+      12,
+      12
+     ],
+     "note": "RIR 1–2"
+    },
+    {
+     "name": "Dead Bugs",
+     "weight": 0,
+     "sets": [
+      10,
+      10,
+      10
+     ],
+     "note": "Je Seite"
+    },
+    {
+     "name": "Prone Cobra",
+     "weight": 0,
+     "sets": [
+      45,
+      45,
+      45
+     ]
+    }
+   ]
+  }
+ ]
+}
