@@ -9,7 +9,7 @@ import {
 } from './logic.js';
 import { lineChart, barChart } from './charts.js';
 
-export const APP_VERSION = '3.3.0';
+export const APP_VERSION = '3.4.0';
 
 const $app = document.getElementById('app');
 const $tabbar = document.getElementById('tabbar');
@@ -189,7 +189,8 @@ function dayDetail(day, sel) {
   return `<div class="dayhead">
       <div class="eyebrow">${esc(relDay(sel))}${past ? ' · verpasst' : ''}</div>
       <div class="dtitle">${esc(title)}</div>
-      <div class="dmeta"><span>${ICON_CLOCK}≈ ${estimateMinutes(day, S.settings.restDefault) + (cdList().length ? Math.min(...cdList().map(cdMinutes)) : 0)} Min.</span><span>${ICON_LIST}${day.exercises.length} Übungen</span></div>
+      ${day.subtitle ? `<div class="dsub">${esc(day.subtitle)}</div>` : ''}
+      <div class="dmeta"><span>${ICON_CLOCK}≈ ${estimateMinutes(day, S.settings.restDefault) + (day.cooldown && cdById(day.cooldown) ? cdMinutes(cdById(day.cooldown)) : cdList().length ? Math.min(...cdList().map(cdMinutes)) : 0)} Min.</span><span>${ICON_LIST}${day.exercises.length} Übungen</span></div>
       ${day.equipment ? `<div class="dmeta"><span>${ICON_TOOL}${esc(day.equipment)}</span></div>` : ''}
     </div>
     ${warmupSection(day.note)}
@@ -200,7 +201,7 @@ function dayDetail(day, sel) {
         ${b.items.length === 1 && b.items[0].hint ? `<div class="hintl">${esc(b.items[0].hint)}</div>` : ''}
       </div>`).join('')}</div>
     </details>
-    ${cooldownSection()}
+    ${cooldownSection(day)}
     <div class="cta2"><button class="btn pill glass" data-a="customize" data-id="${esc(day.id)}" data-t="${sel}">Anpassen</button><button class="btn pill primary" data-a="start" data-id="${esc(day.id)}">${past ? 'Nachholen' : 'Starten'}</button></div>`;
 }
 
@@ -275,7 +276,7 @@ function viewStart() {
 function startTraining(dayId) {
   const day = effectiveDay(S.plan.days.find((d) => d.id === dayId), S.selDate ?? Date.now());
   S.draft = {
-    id: String(Date.now()), startedAt: Date.now(), planName: S.plan.name, dayId: day.id, dayName: day.name, dayNote: day.note || '', idx: 0,
+    id: String(Date.now()), startedAt: Date.now(), planName: S.plan.name, dayId: day.id, dayName: day.name, dayNote: day.note || '', dayCooldown: day.cooldown || '', idx: 0,
     rest: null,
     exercises: day.exercises.map((cfg) => {
       const hist = historyFor(S.sessions, cfg.key);
@@ -770,11 +771,13 @@ const cdList = () => S.plan?.cooldowns || [];
 const cdById = (id) => cdList().find((c) => c.id === id);
 const cdMinutes = (c) => Math.max(1, Math.round(expandCooldown(c).total / 60));
 
-/** Abschnitt in der Tagesansicht: beide Routinen als Liste */
-function cooldownSection() {
+/** Abschnitt in der Tagesansicht: festes Cool-down des Tages (sonst alle zur Auswahl) */
+function cooldownSection(day) {
   if (!cdList().length) return '';
-  return `<details class="sec"><summary>Cool-down<span class="sumx">Auswahl nach dem Training</span><span class="chev"></span></summary>
-    <div class="tl">${cdList().map((c) => `<div class="blk"><div class="blkh">${esc(c.name)} · ${cdMinutes(c)} Min.</div>
+  const fixed = day?.cooldown && cdById(day.cooldown);
+  const list = fixed ? [fixed] : cdList();
+  return `<details class="sec"><summary>Cool-down<span class="sumx">${fixed ? `${cdMinutes(fixed)} Min.` : 'Auswahl nach dem Training'}</span><span class="chev"></span></summary>
+    <div class="tl">${list.map((c) => `<div class="blk"><div class="blkh">${esc(c.name)} · ${cdMinutes(c)} Min.</div>
       ${c.items.map((x) => `<div class="exl"><span class="nm">${esc(x.name)}</span><span class="vv">${x.sec} s${x.sides ? ' je Seite' : ''}</span></div>`).join('')}</div>`).join('')}</div></details>`;
 }
 
@@ -785,8 +788,8 @@ function cooldownCard(d) {
   if (cd?.completed) return `<div class="card row"><div class="grow"><div class="eyebrow">Cool-down erledigt ✓</div><div class="small" style="margin-top:2px">${esc(cd.name)}</div></div></div>`;
   return `<h2>Cool-down</h2>
     ${cd && !cd.completed && cd.idx > 0 ? `<div class="muted small" style="margin:-4px 4px 8px">${esc(cd.name)} abgebrochen – noch einmal starten?</div>` : ''}
-    <div class="list">${cdList().map((c) => `<button class="item" data-a="cdPick" data-id="${esc(c.id)}"><div style="flex:1;min-width:0"><b>${esc(c.name)}</b>
-      <div class="muted small">${cdMinutes(c)} Min. · ${c.items.map((x) => esc(x.name)).join(', ')}</div></div><span class="playico">▶</span></button>`).join('')}</div>`;
+    <div class="list">${[...cdList()].sort((a, b) => (b.id === d.dayCooldown) - (a.id === d.dayCooldown)).map((c) => `<button class="item" data-a="cdPick" data-id="${esc(c.id)}"><div style="flex:1;min-width:0"><b>${esc(c.name)}</b>
+      <div class="muted small">${c.id === d.dayCooldown ? '<span class="ok">Heute vorgesehen</span> · ' : ''}${cdMinutes(c)} Min. · ${c.items.map((x) => esc(x.name)).join(', ')}</div></div><span class="playico">▶</span></button>`).join('')}</div>`;
 }
 
 function cdLeftSec(cd, steps) {
@@ -998,7 +1001,8 @@ function viewSettings() {
   return `<h1>Mehr</h1>
     <h2>Trainingsplan</h2>
     ${p ? `<div class="card"><b>${esc(p.name)}</b><div class="muted small">${p.days.length} Trainingstage${Object.keys(S.edits || {}).length ? ' · mit deinen Anpassungen' : ''}</div>
-      ${p.params ? `<div class="params small">${[['Ziel', p.params.goal], ['Dauer', p.params.duration], ['RIR', p.params.rir], ['Session-RPE', p.params.rpe], ['Progression', p.params.progression], ['Block', p.block ? `${p.block.weeks} Wochen ab ${new Date(p.block.start).toLocaleDateString('de-DE', { day: 'numeric', month: 'long' })}` : '']].filter(([, v]) => v).map(([k, v]) => `<div><span>${k}</span><b>${esc(v)}</b></div>`).join('')}</div>${p.params.notes ? `<p class="muted small" style="margin:10px 0 0">${esc(p.params.notes)}</p>` : ''}` : ''}
+      ${p.params ? `<div class="params small">${[['Frequenz', p.params.frequency], ['Hauptziel', p.params.goal], ['Weitere Ziele', p.params.goals2], ['Dauer', p.params.duration], ['RIR', p.params.rir], ['Session-RPE', p.params.rpe], ['Progression', p.params.progression], ['Block', p.block ? `${p.block.weeks} Wochen ab ${new Date(p.block.start).toLocaleDateString('de-DE', { day: 'numeric', month: 'long' })}` : '']].filter(([, v]) => v).map(([k, v]) => `<div><span>${k}</span><b>${esc(v)}</b></div>`).join('')}</div>${p.params.notes ? `<p class="muted small" style="margin:10px 0 0">${esc(p.params.notes)}</p>` : ''}` : ''}
+      ${p.rules?.length ? `<div class="rules small"><b>Unsere Trainingsregeln</b><ul>${p.rules.map((r) => { const i = r.indexOf(':'); return `<li>${i > 0 ? `<b>${esc(r.slice(0, i))}:</b>${esc(r.slice(i + 1))}` : esc(r)}</li>`; }).join('')}</ul></div>` : ''}
       ${p.activities?.length ? `<div class="muted small" style="margin-top:8px">Dazu: ${p.activities.map((a) => `${DAY_SHORT[a.weekday - 1]} ${esc(a.name)}${a.optional ? ' (optional)' : ''}`).join(' · ')}</div>` : ''}</div>
       <div class="list">${p.days.map((d) => `<div class="item" style="display:block"><b>${esc(d.name)}</b><div class="muted small">${d.exercises.map((e) => `${esc(e.name)} ${e.sets}×${e.repsMin === e.repsMax ? e.repsMin : `${e.repsMin}–${e.repsMax}`}${e.unit === 'sec' ? ' s' : ''}`).join(' · ')}</div></div>`).join('')}</div>` : '<div class="card muted">Noch kein Plan geladen.</div>'}
     <button class="btn" data-a="openLibrary">Übungsbibliothek</button>

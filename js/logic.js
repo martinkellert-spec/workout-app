@@ -55,6 +55,7 @@ export function normalizePlan(raw) {
     source: raw.source ? String(raw.source) : '',
     block: raw.block && raw.block.start ? { weeks: Number(raw.block.weeks) || 8, start: String(raw.block.start) } : null,
     params: raw.params && typeof raw.params === 'object' ? { ...raw.params } : null,
+    rules: Array.isArray(raw.rules) ? raw.rules.map(String) : [],
     activities: Array.isArray(raw.activities) ? raw.activities.map((a) => ({ weekday: Number(a.weekday), name: String(a.name || 'Aktivität'), optional: !!a.optional })) : [],
     cooldowns: Array.isArray(raw.cooldowns) ? raw.cooldowns.map((c, i) => ({
       id: String(c.id || slug(c.name || `cooldown-${i}`)),
@@ -81,6 +82,8 @@ export function normalizePlan(raw) {
         name: String(d.name || `Tag ${String.fromCharCode(65 + i)}`),
         note: d.note ? String(d.note) : '',
         focus: d.focus ? String(d.focus) : '',
+        subtitle: d.subtitle ? String(d.subtitle) : '',
+        cooldown: d.cooldown ? String(d.cooldown) : '',
         groupNames: d.groupNames && typeof d.groupNames === 'object' ? { ...d.groupNames } : {},
         equipment: d.equipment ? String(d.equipment) : '',
         weekday: inferWeekday(d),

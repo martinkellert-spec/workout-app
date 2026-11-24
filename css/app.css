@@ -410,3 +410,8 @@ details.sec .blk .exl { padding: 5px 0; }
 .params div { display: flex; justify-content: space-between; gap: 12px; }
 .params span { color: var(--muted); flex: none; }
 .params b { font-weight: 500; text-align: right; }
+.dsub { font-size: 14px; font-style: italic; color: var(--muted); margin: -6px 0 10px; }
+.rules { margin-top: 12px; padding-top: 12px; border-top: .5px solid var(--line); }
+.rules ul { margin: 6px 0 0; padding-left: 18px; color: var(--muted); }
+.rules li { margin: 4px 0; }
+.rules li b { color: var(--text); font-weight: 600; }

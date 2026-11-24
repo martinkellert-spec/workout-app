@@ -1,32 +1,26 @@
 {
- "name": "Finaler 3er-Plan",
- "version": 6,
+ "name": "Finaler Trainingsplan – Strength, Hypertrophy & Athletic Flow",
+ "version": 7,
  "block": {
   "weeks": 8,
   "start": "2026-11-25"
  },
  "params": {
-  "goal": "Muskelaufbau, Athletik und Haltung",
-  "duration": "30–40 Min. inkl. Warm-up und Cool-down",
+  "frequency": "3× pro Woche",
+  "duration": "30–40 Min. inkl. Warm-up & Cool-down",
+  "goal": "Muskelaufbau",
+  "goals2": "Athletik, Schulterbreite, Brust, Core & Haltung",
   "rir": "überwiegend 1–2",
   "rpe": "7–8/10",
-  "progression": "über Wiederholungen, Gewicht und Ausführungsqualität",
-  "notes": "Mittwoch und Freitag können anfangs länger als 40 Min. dauern – bei Bedarf Volumen reduzieren statt Pausen zu kürzen. RDLs bleiben vorerst eine Testübung."
+  "progression": "Gewicht, Wiederholungen, Ausführungsqualität"
  },
- "activities": [
-  {
-   "weekday": 2,
-   "name": "Yoga"
-  },
-  {
-   "weekday": 4,
-   "name": "Yoga"
-  },
-  {
-   "weekday": 6,
-   "name": "Yoga",
-   "optional": true
-  }
+ "rules": [
+  "Konstanz: Acht Wochen keine unnötigen Übungswechsel.",
+  "Progression: Erst den oberen Wiederholungsbereich in allen Sätzen mit sauberer Technik und passendem RIR erreichen, dann Gewicht oder Schwierigkeit erhöhen.",
+  "Technik vor Wiederholungen: Kein erzwungenes Muskelversagen.",
+  "Zeitlimit: Wenn wir regelmäßig über 40 Minuten kommen, reduzieren wir gezielt Sätze oder weniger wichtige Übungen, nicht die notwendigen Pausen.",
+  "Tracking: Wiederholungen, Gewicht, RIR, Technik, Pump, Beschwerden, Session-RPE und Oura.",
+  "Review: Nach vier Wochen kurzer Zwischencheck, nach acht Wochen ausführliche Auswertung."
  ],
  "tests": {
   "everyWeeks": 8,
@@ -137,8 +131,18 @@
  "days": [
   {
    "id": "Mo",
-   "name": "Montag – Brust/Rücken/Core",
-   "note": "4–5 Min.: Scapular Pull-ups, Scapular Push-ups, Wall Slides, lockere Pull-ups & Push-ups",
+   "name": "Montag – Chest & Back + Core",
+   "focus": "Chest & Back + Core",
+   "subtitle": "Strength · kontrollierte Ausführung · längere Pausen",
+   "equipment": "Klimmzugstange, Kurzhanteln, Kettlebell-Griffe, Sofa/Bank",
+   "cooldown": "durch-und-durch",
+   "note": "30 Skipping Jumps, 30 Jumping Jacks, 8 Scapular Pull-ups, 8 Scapular Push-ups, 10 Wall Slides, 10 Plank Knees-to-Elbows, 3 lockere Pull-ups, 5 lockere Push-ups",
+   "groupNames": {
+    "A": "Superset",
+    "B": "Superset",
+    "C": "Superset",
+    "D": "Core & Posture"
+   },
    "exercises": [
     {
      "name": "Pull-ups",
@@ -196,7 +200,7 @@
      ],
      "group": "C",
      "rest": 0,
-     "hint": "Gewicht nach Technik (7,5–12,5 kg)"
+     "hint": "Gewicht pro Kurzhantel"
     },
     {
      "name": "Seitheben",
@@ -211,7 +215,7 @@
      ],
      "group": "C",
      "rest": 60,
-     "hint": "Für breite Schultern: kontrolliert bis Schulterhöhe, oben kurz halten"
+     "hint": "Gewicht pro Kurzhantel"
     },
     {
      "name": "Hanging Knee Raises",
@@ -219,9 +223,8 @@
      "sets": 3,
      "repsMin": 10,
      "repsMax": 12,
-     "group": "Core",
-     "rest": 0,
-     "hint": "Core-Circuit, 2–3 Runden"
+     "group": "D",
+     "rest": 0
     },
     {
      "name": "Dead Bugs",
@@ -229,7 +232,7 @@
      "sets": 3,
      "repsMin": 8,
      "repsMax": 10,
-     "group": "Core",
+     "group": "D",
      "rest": 0,
      "hint": "Je Seite"
     },
@@ -240,22 +243,23 @@
      "sets": 3,
      "repsMin": 40,
      "repsMax": 45,
-     "group": "Core",
+     "group": "D",
      "rest": 45
     }
-   ],
-   "focus": "Push & Pull + Core",
-   "equipment": "Klimmzugstange, Kurzhanteln, Kettlebell-Griffe",
-   "groupNames": {
-    "Core": "Core-Circuit"
-   }
+   ]
   },
   {
    "id": "Mi",
    "name": "Mittwoch – Legs & Arms + Core",
    "focus": "Legs & Arms + Core",
+   "subtitle": "Classical Hypertrophy · Einzelsätze · gezielter Muskelreiz",
    "equipment": "Klimmzugstange, Kurzhanteln, Kettlebells",
-   "note": "4–5 Min.: 10 Air Squats, 6 Reverse Lunges je Seite, 10 Glute Bridges, 8 Hip Hinges ohne Gewicht, 8 Scapular Pull-ups, 3 lockere Chin-ups",
+   "cooldown": "jeden-tag",
+   "note": "30 Jumping Jacks, World's Greatest Stretch dynamisch – 30 Sek. je Seite, 10 Air Squats, 6 Reverse Lunges je Seite, 10 Glute Bridges, 10 Hip Hinges ohne Gewicht, 3 lockere Chin-ups",
+   "groupNames": {
+    "B": "Arm-Superset",
+    "C": "Core & Posture"
+   },
    "exercises": [
     {
      "name": "Chin-ups",
@@ -263,22 +267,21 @@
      "sets": 3,
      "repsMin": 5,
      "repsMax": 8,
-     "rest": 90,
-     "hint": "RIR 1–2"
+     "rest": 75
     },
     {
      "name": "Walking Lunges",
      "sets": 3,
      "repsMin": 10,
-     "repsMax": 12,
+     "repsMax": 10,
      "weight": 7.5,
      "weights": [
       7.5,
       12.5,
       15
      ],
-     "rest": 90,
-     "hint": "Je Seite · Gewicht pro Kurzhantel · RIR 1–2"
+     "rest": 75,
+     "hint": "Je Seite · Gewicht pro Kurzhantel"
     },
     {
      "name": "Romanian Deadlifts",
@@ -292,7 +295,7 @@
       15
      ],
      "rest": 90,
-     "hint": "Testübung: 3 Sek. absenken, bewusst RIR 3–4. Rücken neutral – bei Beschwerden im unteren Rücken sofort stoppen"
+     "hint": "3 Sek. absenken, Rücken neutral · Start mit 7,5 kg, Rückenreaktion beobachten – bei Bedarf in der App schwerer"
     },
     {
      "name": "Goblet Tempo Squat",
@@ -304,8 +307,8 @@
       12,
       16
      ],
-     "rest": 90,
-     "hint": "3 Sek. absenken · RIR 1–2"
+     "rest": 75,
+     "hint": "3 Sek. absenken"
     },
     {
      "name": "DB Curls",
@@ -337,7 +340,7 @@
      ],
      "group": "B",
      "rest": 60,
-     "hint": "Overhead Triceps Extension mit 12-kg-Kettlebell"
+     "hint": "Overhead Triceps Extension, 12-kg-Kettlebell – Gewicht beim ersten Training überprüfen"
     },
     {
      "name": "Windshield Wipers",
@@ -345,7 +348,7 @@
      "sets": 2,
      "repsMin": 8,
      "repsMax": 10,
-     "group": "Core",
+     "group": "C",
      "rest": 0,
      "hint": "Je Seite"
     },
@@ -355,8 +358,8 @@
      "unit": "sec",
      "sets": 2,
      "repsMin": 30,
-     "repsMax": 45,
-     "group": "Core",
+     "repsMax": 30,
+     "group": "C",
      "rest": 0,
      "hint": "Je Seite"
     },
@@ -365,23 +368,26 @@
      "type": "bodyweight",
      "sets": 2,
      "repsMin": 8,
-     "repsMax": 10,
-     "group": "Core",
+     "repsMax": 8,
+     "group": "C",
      "rest": 45,
      "hint": "Je Seite"
     }
-   ],
-   "groupNames": {
-    "B": "Arm-Superset",
-    "Core": "Core-Circuit"
-   }
+   ]
   },
   {
    "id": "Fr",
    "name": "Freitag – Athletic Full Body",
    "focus": "Athletic Full Body",
+   "subtitle": "Flow · Pump · Dynamik · Conditioning",
    "equipment": "Klimmzugstange, Kurzhanteln, Kettlebells",
-   "note": "4–5 Min.: 30 Sek. Jumping Jacks, 10 Air Squats, 8 Scapular Pull-ups, 10 Wall Slides, 3 lockere Pull-ups, 6 lockere Push-ups, 5 leichte Thrusters",
+   "cooldown": "durch-und-durch",
+   "note": "30 Skipping Jumps, 30 Jumping Jacks, 20 Mountain Climbers, World's Greatest Stretch dynamisch – 20 Sek. je Seite, High Side Plank Hold – 10 Sek. je Seite, 10 Air Squats, 3 lockere Pull-ups, 5 leichte Thrusters",
+   "groupNames": {
+    "A": "Strength Circuit",
+    "B": "Athletic Circuit",
+    "C": "Core, Pump & Carry"
+   },
    "exercises": [
     {
      "name": "Pull-ups",
@@ -414,7 +420,7 @@
      ],
      "group": "A",
      "rest": 75,
-     "hint": "Kniebeuge und Schulterdrücken in einer Bewegung · Gewicht pro Kurzhantel"
+     "hint": "Gewicht pro Kurzhantel"
     },
     {
      "name": "DB Rows",
@@ -443,7 +449,7 @@
      ],
      "group": "B",
      "rest": 0,
-     "hint": "Je Seite · Kettlebell vor der Brust, seitlich tief auf ein Bein"
+     "hint": "Je Seite"
     },
     {
      "name": "Seitheben",
@@ -461,20 +467,6 @@
      "hint": "Gewicht pro Kurzhantel"
     },
     {
-     "name": "Rear Delt Rows",
-     "sets": 2,
-     "repsMin": 12,
-     "repsMax": 15,
-     "weight": 7.5,
-     "weights": [
-      7.5,
-      12.5,
-      15
-     ],
-     "group": "C",
-     "rest": 0
-    },
-    {
      "name": "Hammer Curls",
      "sets": 2,
      "repsMin": 12,
@@ -486,31 +478,8 @@
       15
      ],
      "group": "C",
-     "rest": 0
-    },
-    {
-     "name": "Enge Push-ups",
-     "type": "bodyweight",
-     "sets": 2,
-     "repsMin": 10,
-     "repsMax": 15,
-     "group": "C",
-     "rest": 0
-    },
-    {
-     "name": "Farmer Carry",
-     "unit": "sec",
-     "sets": 2,
-     "repsMin": 45,
-     "repsMax": 60,
-     "weight": 16,
-     "weights": [
-      12,
-      16
-     ],
-     "group": "C",
-     "rest": 60,
-     "hint": "2 × 16 kg · Gewicht pro Kettlebell"
+     "rest": 0,
+     "hint": "Gewicht pro Kurzhantel"
     },
     {
      "name": "Hanging Knee Raises",
@@ -518,7 +487,7 @@
      "sets": 2,
      "repsMin": 10,
      "repsMax": 12,
-     "group": "D",
+     "group": "C",
      "rest": 0
     },
     {
@@ -527,9 +496,24 @@
      "sets": 2,
      "repsMin": 10,
      "repsMax": 10,
-     "group": "D",
+     "group": "C",
      "rest": 0,
-     "hint": "Je Seite · im Unterarmstütz abwechselnd ein Bein gestreckt anheben"
+     "hint": "Je Seite"
+    },
+    {
+     "name": "Farmer Carry",
+     "unit": "sec",
+     "sets": 2,
+     "repsMin": 45,
+     "repsMax": 45,
+     "weight": 16,
+     "weights": [
+      12,
+      16
+     ],
+     "group": "C",
+     "rest": 0,
+     "hint": "2 × 16 kg · Gewicht pro Kettlebell"
     },
     {
      "name": "Prone Cobra",
@@ -538,16 +522,10 @@
      "sets": 2,
      "repsMin": 45,
      "repsMax": 45,
-     "group": "D",
-     "rest": 40
+     "group": "C",
+     "rest": 60
     }
-   ],
-   "groupNames": {
-    "A": "Strength Circuit",
-    "B": "Athletic Circuit",
-    "C": "Pump & Carry",
-    "D": "Core & Posture"
-   }
+   ]
   }
  ],
  "history": [
