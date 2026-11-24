@@ -405,3 +405,8 @@ details.sec .blk .exl { padding: 5px 0; }
 .ring.big svg circle { stroke-width: 3.2; }
 .cdtime { font-size: 72px; line-height: 1; letter-spacing: -.035em; margin: 14px 0 10px; }
 .playico { color: var(--green); font-size: 14px; }
+.mk.act { width: 10px; height: 10px; margin: 4px; box-shadow: inset 0 0 0 1.5px var(--green); opacity: .7; }
+.params { display: grid; gap: 6px; margin-top: 12px; padding-top: 12px; border-top: .5px solid var(--line); }
+.params div { display: flex; justify-content: space-between; gap: 12px; }
+.params span { color: var(--muted); flex: none; }
+.params b { font-weight: 500; text-align: right; }

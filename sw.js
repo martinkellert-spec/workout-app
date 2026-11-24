@@ -1,5 +1,5 @@
 // Bei jeder Änderung an den App-Dateien VERSION erhöhen → iPhone lädt die neue Version.
-const VERSION = 'v3.2.0';
+const VERSION = 'v3.3.0';
 const CACHE = `workout-${VERSION}`;
 const FILES = [
   './', 'index.html', 'manifest.webmanifest', 'css/app.css',

@@ -53,6 +53,9 @@ export function normalizePlan(raw) {
     name: String(raw.name || 'Mein Plan'),
     version: Number(raw.version) || 0,
     source: raw.source ? String(raw.source) : '',
+    block: raw.block && raw.block.start ? { weeks: Number(raw.block.weeks) || 8, start: String(raw.block.start) } : null,
+    params: raw.params && typeof raw.params === 'object' ? { ...raw.params } : null,
+    activities: Array.isArray(raw.activities) ? raw.activities.map((a) => ({ weekday: Number(a.weekday), name: String(a.name || 'Aktivität'), optional: !!a.optional })) : [],
     cooldowns: Array.isArray(raw.cooldowns) ? raw.cooldowns.map((c, i) => ({
       id: String(c.id || slug(c.name || `cooldown-${i}`)),
       name: String(c.name || `Cool-down ${i + 1}`),
@@ -78,6 +81,7 @@ export function normalizePlan(raw) {
         name: String(d.name || `Tag ${String.fromCharCode(65 + i)}`),
         note: d.note ? String(d.note) : '',
         focus: d.focus ? String(d.focus) : '',
+        groupNames: d.groupNames && typeof d.groupNames === 'object' ? { ...d.groupNames } : {},
         equipment: d.equipment ? String(d.equipment) : '',
         weekday: inferWeekday(d),
         exercises: d.exercises.map((e, j) => {
@@ -430,7 +434,7 @@ export function estimateMinutes(day, restDefault = 90) {
 export function weekProgress(plan, sessions, now = Date.now()) {
   const ws = weekStart(now), we = ws + 7 * 864e5;
   const planned = plan ? plan.days.filter((d) => (d.weekday ?? inferWeekday(d))).length : 0;
-  const days = new Set(sessions.filter((s) => s.endedAt && s.startedAt >= ws && s.startedAt < we).map((s) => new Date(s.startedAt).toDateString()));
+  const days = new Set(sessions.filter((s) => s.endedAt && s.kind !== 'activity' && s.startedAt >= ws && s.startedAt < we).map((s) => new Date(s.startedAt).toDateString()));
   return { planned, done: Math.min(days.size, Math.max(planned, days.size)) };
 }
 
@@ -505,4 +509,20 @@ export function expandCooldown(cd) {
     else steps.push({ name: x.name, sec: x.sec, hint: x.hint });
   }
   return { steps, total: steps.reduce((a, x) => a + x.sec, 0) };
+}
+
+/** Aktivität (z. B. Yoga) für ein Datum laut Plan, sonst null */
+export function activityFor(plan, ts) {
+  const wd = ((new Date(ts).getDay() + 6) % 7) + 1;
+  return plan?.activities?.find((a) => a.weekday === wd) || null;
+}
+
+/** Trainingsblock: aktuelle Woche (1-basiert) oder Tage bis zum Start */
+export function blockStatus(plan, now = Date.now()) {
+  if (!plan?.block) return null;
+  const [y, m, d] = plan.block.start.split('-').map(Number);
+  const start = new Date(y, m - 1, d).getTime();
+  if (now < start) return { before: true, daysToStart: Math.ceil((start - now) / 864e5), weeks: plan.block.weeks };
+  const week = Math.floor((now - start) / (7 * 864e5)) + 1;
+  return { before: false, week: Math.min(week, plan.block.weeks), weeks: plan.block.weeks, over: week > plan.block.weeks };
 }

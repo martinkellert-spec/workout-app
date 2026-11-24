@@ -5,11 +5,11 @@ import {
   weekStart, weeklyStats, streak, fmtNum, fmtDuration, epley, topWeight, unitLabel, nextOpen, supersetNext,
   nextWeight, prevWeight, rirSummary, fmtRir, planDayFor, sameDay, testStatus, testHistory, testDelta,
   fmtTestValue, fmtTime, insights, weekProgress, estimateMinutes, blocks, parseWarmup,
-  normalizeLibrary, applyEdits, alternativesFor, fromLibrary, expandCooldown,
+  normalizeLibrary, applyEdits, alternativesFor, fromLibrary, expandCooldown, activityFor, blockStatus,
 } from './logic.js';
 import { lineChart, barChart } from './charts.js';
 
-export const APP_VERSION = '3.2.0';
+export const APP_VERSION = '3.3.0';
 
 const $app = document.getElementById('app');
 const $tabbar = document.getElementById('tabbar');
@@ -149,7 +149,7 @@ function topStats() {
   const segs = Array.from({ length: Math.max(wp.planned, 1) }, (_, i) => `<i class="${i < wp.done ? 'on' : ''}"></i>`).join('');
   return `<div class="topstats">
     <div class="ts"><div class="k">Wochen in Folge</div><div class="v"><span class="flame ${st ? 'on' : ''}">${ICON_FLAME}</span><span class="num">${st}</span></div></div>
-    <div class="ts grow"><div class="k">${wp.done >= wp.planned && wp.planned ? 'Perfekte Woche ✓' : 'Perfekte Woche'}</div><div class="segs">${segs}</div><div class="sub">${wp.done} von ${wp.planned} Einheiten</div></div>
+    <div class="ts grow"><div class="k">${wp.done >= wp.planned && wp.planned ? 'Perfekte Woche ✓' : 'Perfekte Woche'}</div><div class="segs">${segs}</div><div class="sub">${wp.done} von ${wp.planned} Einheiten${(() => { const b = blockStatus(S.plan); return !b ? '' : b.before ? ` · Block startet ${b.daysToStart === 1 ? 'morgen' : `in ${b.daysToStart} Tagen`}` : b.over ? ' · Block abgeschlossen' : ` · Block Woche ${b.week}/${b.weeks}`; })()}</div></div>
   </div>`;
 }
 
@@ -162,7 +162,8 @@ function weekStrip(sel) {
     const planned = !!planDayFor(S.plan, t);
     const isSel = sel && sameDay(t, sel), isToday = sameDay(t, Date.now());
     const firstTs = Math.min(...S.sessions.filter((x) => x.endedAt).map((x) => dayStart(x.startedAt)), Infinity);
-    const mk = isDone ? 'done' : planned ? (dayStart(t) < dayStart(Date.now()) ? (t < firstTs ? 'rest' : 'missed') : 'plan') : 'rest';
+    const act = !planned && activityFor(S.plan, t);
+    const mk = isDone ? 'done' : planned ? (dayStart(t) < dayStart(Date.now()) ? (t < firstTs ? 'rest' : 'missed') : 'plan') : act ? 'act' : 'rest';
     return `<button class="wkd ${isSel ? 'sel' : ''} ${isToday ? 'today' : ''}" data-a="selDay" data-t="${t}">
       <span class="mk ${mk}">${isDone ? ICON_CHECK : ''}</span><span class="lb">${isSel ? `${d.getDate()}.${d.getMonth() + 1}.` : l}</span></button>`;
   }).join('')}</div>`;
@@ -194,7 +195,7 @@ function dayDetail(day, sel) {
     ${warmupSection(day.note)}
     <details class="sec" open><summary>Workout<span class="chev"></span></summary>
       <div class="tl">${bl.map((b) => `<div class="blk">
-        ${b.items.length > 1 ? `<div class="blkh">${b.items.length > 2 ? 'Circuit' : 'Supersatz'} · ${Math.max(...b.items.map((e) => e.sets))} Runden</div>` : ''}
+        ${b.items.length > 1 ? `<div class="blkh">${esc(day.groupNames?.[b.group] || (b.items.length > 2 ? 'Circuit' : 'Supersatz'))} · ${Math.max(...b.items.map((e) => e.sets))} Runden</div>` : ''}
         ${b.items.map((e) => exLine(e)).join('')}
         ${b.items.length === 1 && b.items[0].hint ? `<div class="hintl">${esc(b.items[0].hint)}</div>` : ''}
       </div>`).join('')}</div>
@@ -209,11 +210,18 @@ function dayCard(sel) {
   if (thatDay.length) {
     return thatDay.map((x) => `<a class="hero done-card" href="#/${x.kind === 'test' ? 'testinfo' : 'session'}/${x.id}">
       <div class="label">${esc(label)} · erledigt ✓</div>
-      <div class="day">${esc(x.kind === 'test' ? 'Leistungstest' : (S.plan.days.find((d) => d.id === x.dayId)?.focus || x.dayName))}</div>
+      <div class="day">${esc(x.kind === 'test' ? 'Leistungstest' : x.kind === 'activity' ? x.dayName : (S.plan.days.find((d) => d.id === x.dayId)?.focus || x.dayName))}</div>
       ${x.kind === 'test' && planDayFor(S.plan, sel) ? `<div class="muted small" style="margin:-4px 0 10px">statt ${esc(planDayFor(S.plan, sel).focus || planDayFor(S.plan, sel).name)}</div>` : ''}
-      <div class="donerow"><span>${fmtDuration(x.endedAt - x.startedAt)}</span>${x.kind === 'test' ? `<span>${((n) => `${n} ${n === 1 ? 'Test' : 'Tests'}`)((x.results || []).filter((r) => r.value != null).length)}</span>` : `<span>${fmtNum(Math.round(volume(x)))} kg</span>`}${x.rpe ? `<span>RPE ${x.rpe}</span>` : ''}<span class="chev" style="margin-left:auto"></span></div></a>`).join('');
+      <div class="donerow"><span>${fmtDuration(x.endedAt - x.startedAt)}</span>${x.kind === 'test' ? `<span>${((n) => `${n} ${n === 1 ? 'Test' : 'Tests'}`)((x.results || []).filter((r) => r.value != null).length)}</span>` : x.kind === 'activity' ? '' : `<span>${fmtNum(Math.round(volume(x)))} kg</span>`}${x.rpe ? `<span>RPE ${x.rpe}</span>` : ''}<span class="chev" style="margin-left:auto"></span></div></a>`).join('');
   }
   const day = effectiveDay(planDayFor(S.plan, sel), sel);
+  const act = !day && activityFor(S.plan, sel);
+  if (act) {
+    return `<div class="hero"><div class="label">${esc(label)}${act.optional ? ' · optional' : ''}</div><div class="day">${esc(act.name)}</div>
+      <p class="muted small">Aktiver Erholungstag. Zählt nicht in die perfekte Woche, landet aber im Verlauf.</p>
+      <button class="btn pill glass" data-a="activityDone" data-t="${sel}" data-n="${esc(act.name)}">Als erledigt markieren</button>
+      <button class="textlink" style="margin:10px 0 0" data-a="pickOther">Stattdessen trainieren</button></div>`;
+  }
   if (!day) {
     return `<div class="hero rest-card"><div class="label" style="color:var(--muted)">${esc(label)}</div><div class="day">Kein Training</div>
       <button class="textlink" style="margin:4px 0 0" data-a="pickOther">Trotzdem trainieren</button></div>`;
@@ -534,7 +542,7 @@ function viewHistory() {
     }).join('')}</div>`;
   }
   return `<h1>Verlauf</h1>${seg}<div class="list">${list.map((s) => `<a class="item" href="#/session/${s.id}">
-    <div style="flex:1;min-width:0"><b>${esc(s.dayName)}</b><div class="muted small">${dateLong(s.startedAt)} · ${fmtDuration(s.endedAt - s.startedAt)} · ${fmtNum(Math.round(volume(s)))} kg${s.rpe ? ` · RPE ${s.rpe}` : ''}</div></div><span class="chev"></span></a>`).join('')}</div>`;
+    <div style="flex:1;min-width:0"><b>${esc(s.dayName)}</b><div class="muted small">${dateLong(s.startedAt)} · ${fmtDuration(s.endedAt - s.startedAt)}${s.kind === 'activity' ? '' : ` · ${fmtNum(Math.round(volume(s)))} kg`}${s.rpe ? ` · RPE ${s.rpe}` : ''}</div></div><span class="chev"></span></a>`).join('')}</div>`;
 }
 
 function viewSession(id) {
@@ -989,7 +997,9 @@ function viewSettings() {
   const p = S.plan;
   return `<h1>Mehr</h1>
     <h2>Trainingsplan</h2>
-    ${p ? `<div class="card"><b>${esc(p.name)}</b><div class="muted small">${p.days.length} Trainingstage${Object.keys(S.edits || {}).length ? ' · mit deinen Anpassungen' : ''}</div></div>
+    ${p ? `<div class="card"><b>${esc(p.name)}</b><div class="muted small">${p.days.length} Trainingstage${Object.keys(S.edits || {}).length ? ' · mit deinen Anpassungen' : ''}</div>
+      ${p.params ? `<div class="params small">${[['Ziel', p.params.goal], ['Dauer', p.params.duration], ['RIR', p.params.rir], ['Session-RPE', p.params.rpe], ['Progression', p.params.progression], ['Block', p.block ? `${p.block.weeks} Wochen ab ${new Date(p.block.start).toLocaleDateString('de-DE', { day: 'numeric', month: 'long' })}` : '']].filter(([, v]) => v).map(([k, v]) => `<div><span>${k}</span><b>${esc(v)}</b></div>`).join('')}</div>${p.params.notes ? `<p class="muted small" style="margin:10px 0 0">${esc(p.params.notes)}</p>` : ''}` : ''}
+      ${p.activities?.length ? `<div class="muted small" style="margin-top:8px">Dazu: ${p.activities.map((a) => `${DAY_SHORT[a.weekday - 1]} ${esc(a.name)}${a.optional ? ' (optional)' : ''}`).join(' · ')}</div>` : ''}</div>
       <div class="list">${p.days.map((d) => `<div class="item" style="display:block"><b>${esc(d.name)}</b><div class="muted small">${d.exercises.map((e) => `${esc(e.name)} ${e.sets}×${e.repsMin === e.repsMax ? e.repsMin : `${e.repsMin}–${e.repsMax}`}${e.unit === 'sec' ? ' s' : ''}`).join(' · ')}</div></div>`).join('')}</div>` : '<div class="card muted">Noch kein Plan geladen.</div>'}
     <button class="btn" data-a="openLibrary">Übungsbibliothek</button>
     <button class="btn" data-a="loadMine">Meinen Plan neu laden</button>
@@ -1117,6 +1127,17 @@ const actions = {
   },
   pickDay: (a) => { S.pickDay = a.dataset.id; render(); },
   selDay: (a) => { S.selDate = +a.dataset.t; render(); },
+  activityDone: (a) => {
+    const t = +a.dataset.t, name = a.dataset.n;
+    sheet(`<h3>${esc(name)} erledigt</h3><p class="muted small" style="text-align:center">Wie lange?</p>
+      <div class="rpegrid" style="grid-template-columns:repeat(4,1fr);margin-bottom:14px">${[20, 30, 45, 60].map((m) => `<button data-s="save" data-m="${m}">${m} Min.</button>`).join('')}</div>`, {
+      save: async (b) => {
+        const start = sameDay(t, Date.now()) ? Date.now() - +b.dataset.m * 60000 : new Date(new Date(t).setHours(18, 0, 0, 0)).getTime();
+        const x = { id: `act-${Date.now()}`, kind: 'activity', startedAt: start, endedAt: start + +b.dataset.m * 60000, planName: S.plan.name, dayId: 'activity', dayName: name, note: '', exercises: [] };
+        await db.putSession(x); S.sessions.push(x); closeSheet(); toast(`${name} eingetragen`); render(); backupSoon();
+      },
+    });
+  },
   cdPick: (a) => {
     const c = cdById(a.dataset.id); if (!c) return;
     unlockAudio(); keepAwake(true);

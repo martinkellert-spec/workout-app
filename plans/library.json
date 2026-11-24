@@ -1,5 +1,5 @@
 {
- "version": 2,
+ "version": 3,
  "note": "Übungsbibliothek für das Home-Gym: Klimmzugstange, Kurzhanteln 7,5/12,5/15 kg, Kettlebells 12/16 kg, Sofa/Bank. patterns = Bewegungsmuster für passende Alternativen.",
  "exercises": [
   {
@@ -1296,6 +1296,94 @@
    "repsMin": 30,
    "repsMax": 60,
    "hint": "Unterarm an Wand oder Türrahmen, Oberkörper sanft wegdrehen · je Seite"
+  },
+  {
+   "name": "Romanian Deadlifts",
+   "muscles": [
+    "Beinbeuger",
+    "Po",
+    "Rücken"
+   ],
+   "patterns": [
+    "hip"
+   ],
+   "equipment": "Kurzhanteln",
+   "type": "weight",
+   "repsMin": 8,
+   "repsMax": 12,
+   "weight": 7.5,
+   "weights": [
+    7.5,
+    12.5,
+    15
+   ],
+   "hint": "Hüfte nach hinten schieben, Rücken neutral, 3 Sek. absenken – bei Rückenbeschwerden weglassen"
+  },
+  {
+   "name": "Goblet Side Lunges",
+   "muscles": [
+    "Beine",
+    "Adduktoren",
+    "Po"
+   ],
+   "patterns": [
+    "knee"
+   ],
+   "equipment": "Kettlebell",
+   "type": "weight",
+   "repsMin": 8,
+   "repsMax": 10,
+   "weight": 12,
+   "weights": [
+    12,
+    16
+   ],
+   "hint": "Je Seite · Kettlebell vor der Brust, seitlich tief auf ein Bein"
+  },
+  {
+   "name": "Plank Leg Lifts",
+   "muscles": [
+    "Core",
+    "Po"
+   ],
+   "patterns": [
+    "core-anti"
+   ],
+   "equipment": "Körpergewicht",
+   "type": "bodyweight",
+   "repsMin": 8,
+   "repsMax": 12,
+   "hint": "Je Seite · im Unterarmstütz abwechselnd ein Bein gestreckt anheben"
+  },
+  {
+   "name": "Wall Slides",
+   "muscles": [
+    "Schultern",
+    "Mobilität"
+   ],
+   "patterns": [
+    "mobility"
+   ],
+   "equipment": "Wand",
+   "type": "bodyweight",
+   "repsMin": 8,
+   "repsMax": 12,
+   "hint": "Rücken und Arme an der Wand, Arme hochschieben"
+  },
+  {
+   "name": "Scapular Pull-ups",
+   "muscles": [
+    "Rücken",
+    "Mobilität"
+   ],
+   "patterns": [
+    "mobility"
+   ],
+   "equipment": "Klimmzugstange",
+   "type": "bodyweight",
+   "repsMin": 8,
+   "repsMax": 12,
+   "hint": "Im Hang nur die Schulterblätter nach unten ziehen"
   }
  ]
 }

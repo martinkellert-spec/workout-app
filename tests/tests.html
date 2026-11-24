@@ -197,6 +197,16 @@ t('Cool-down auflösen', () => {
   eq(L.normalizePlan({ days: [{ exercises: [{ name: 'X' }] }] }).cooldowns, []);
 });
 
+t('Yoga-Tage und Block', () => {
+  const plan = L.normalizePlan({ block: { weeks: 8, start: '2026-11-25' }, activities: [{ weekday: 2, name: 'Yoga' }], days: [{ id: 'Mi', exercises: [{ name: 'X' }] }] });
+  eq(L.activityFor(plan, new Date(2026, 10, 24).getTime())?.name, 'Yoga');
+  eq(L.activityFor(plan, new Date(2026, 10, 25).getTime()), null);
+  eq(L.blockStatus(plan, new Date(2026, 10, 24, 12).getTime()).before, true);
+  eq(L.blockStatus(plan, new Date(2026, 11, 3, 12).getTime()).week, 2);
+  const yoga = { kind: 'activity', startedAt: new Date(2026, 10, 24, 18).getTime(), endedAt: 1 };
+  eq(L.weekProgress(plan, [yoga], new Date(2026, 10, 26).getTime()).done, 0);
+});
+
 out.insertAdjacentHTML('afterbegin', `<h2 id="summary" class="${fail ? 'fail' : 'ok'}">${pass} bestanden, ${fail} fehlgeschlagen</h2>`);
 </script>
 </body>

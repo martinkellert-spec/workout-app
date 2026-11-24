@@ -1,8 +1,35 @@
 {
  "name": "Finaler 3er-Plan",
- "version": 5,
+ "version": 6,
+ "block": {
+  "weeks": 8,
+  "start": "2026-11-25"
+ },
+ "params": {
+  "goal": "Muskelaufbau, Athletik und Haltung",
+  "duration": "30–40 Min. inkl. Warm-up und Cool-down",
+  "rir": "überwiegend 1–2",
+  "rpe": "7–8/10",
+  "progression": "über Wiederholungen, Gewicht und Ausführungsqualität",
+  "notes": "Mittwoch und Freitag können anfangs länger als 40 Min. dauern – bei Bedarf Volumen reduzieren statt Pausen zu kürzen. RDLs bleiben vorerst eine Testübung."
+ },
+ "activities": [
+  {
+   "weekday": 2,
+   "name": "Yoga"
+  },
+  {
+   "weekday": 4,
+   "name": "Yoga"
+  },
+  {
+   "weekday": 6,
+   "name": "Yoga",
+   "optional": true
+  }
+ ],
  "tests": {
-  "everyWeeks": 6,
+  "everyWeeks": 8,
   "items": [
    {
     "id": "pullup-max",
@@ -218,12 +245,17 @@
     }
    ],
    "focus": "Push & Pull + Core",
-   "equipment": "Klimmzugstange, Kurzhanteln, Kettlebell-Griffe"
+   "equipment": "Klimmzugstange, Kurzhanteln, Kettlebell-Griffe",
+   "groupNames": {
+    "Core": "Core-Circuit"
+   }
   },
   {
    "id": "Mi",
-   "name": "Mittwoch – Beine/Arme/Core",
-   "note": "4–5 Min.: Air Squats, Reverse Lunges, Glute Bridges, Hip Hinges, lockere Chin-ups",
+   "name": "Mittwoch – Legs & Arms + Core",
+   "focus": "Legs & Arms + Core",
+   "equipment": "Klimmzugstange, Kurzhanteln, Kettlebells",
+   "note": "4–5 Min.: 10 Air Squats, 6 Reverse Lunges je Seite, 10 Glute Bridges, 8 Hip Hinges ohne Gewicht, 8 Scapular Pull-ups, 3 lockere Chin-ups",
    "exercises": [
     {
      "name": "Chin-ups",
@@ -231,12 +263,13 @@
      "sets": 3,
      "repsMin": 5,
      "repsMax": 8,
-     "rest": 90
+     "rest": 90,
+     "hint": "RIR 1–2"
     },
     {
-     "name": "Bulgarian Split Squats",
+     "name": "Walking Lunges",
      "sets": 3,
-     "repsMin": 8,
+     "repsMin": 10,
      "repsMax": 12,
      "weight": 7.5,
      "weights": [
@@ -244,9 +277,50 @@
       12.5,
       15
      ],
+     "rest": 90,
+     "hint": "Je Seite · Gewicht pro Kurzhantel · RIR 1–2"
+    },
+    {
+     "name": "Romanian Deadlifts",
+     "sets": 3,
+     "repsMin": 10,
+     "repsMax": 10,
+     "weight": 7.5,
+     "weights": [
+      7.5,
+      12.5,
+      15
+     ],
+     "rest": 90,
+     "hint": "Testübung: 3 Sek. absenken, bewusst RIR 3–4. Rücken neutral – bei Beschwerden im unteren Rücken sofort stoppen"
+    },
+    {
+     "name": "Goblet Tempo Squat",
+     "sets": 3,
+     "repsMin": 12,
+     "repsMax": 15,
+     "weight": 16,
+     "weights": [
+      12,
+      16
+     ],
+     "rest": 90,
+     "hint": "3 Sek. absenken · RIR 1–2"
+    },
+    {
+     "name": "DB Curls",
+     "sets": 3,
+     "repsMin": 12,
+     "repsMax": 15,
+     "weight": 7.5,
+     "weights": [
+      7.5,
+      12.5,
+      15
+     ],
+     "group": "B",
      "rest": 0,
-     "hint": "Je Seite · hinterer Fuß auf Sofa/Bank · Gewicht pro Kurzhantel",
-     "group": "A"
+     "hint": "Gewicht pro Kurzhantel"
     },
     {
      "name": "Trizeps Überkopf",
@@ -261,69 +335,25 @@
       15,
       16
      ],
-     "group": "A",
-     "rest": 60,
-     "hint": "Ein Gewicht mit beiden Händen hinter dem Kopf, Ellbogen eng"
-    },
-    {
-     "name": "Hip Thrusts",
-     "sets": 3,
-     "repsMin": 10,
-     "repsMax": 15,
-     "weight": 16,
-     "weights": [
-      12,
-      15,
-      16
-     ],
-     "rest": 0,
-     "hint": "Auf dem Boden: Rücken liegt, Füße aufgestellt, Gewicht auf der Hüfte – Becken nach oben drücken, oben 1 Sek. halten",
-     "group": "B"
-    },
-    {
-     "name": "DB Curls",
-     "sets": 3,
-     "repsMin": 10,
-     "repsMax": 15,
-     "weight": 7.5,
-     "weights": [
-      7.5,
-      12.5,
-      15
-     ],
      "group": "B",
      "rest": 60,
-     "hint": "Gewicht pro Kurzhantel"
-    },
-    {
-     "name": "Hammer Curls",
-     "sets": 2,
-     "repsMin": 10,
-     "repsMax": 15,
-     "weight": 7.5,
-     "weights": [
-      7.5,
-      12.5,
-      15
-     ],
-     "rest": 45,
-     "hint": "Neutraler Griff (Daumen oben) · Gewicht pro Kurzhantel"
+     "hint": "Overhead Triceps Extension mit 12-kg-Kettlebell"
     },
     {
      "name": "Windshield Wipers",
      "type": "bodyweight",
-     "sets": 3,
+     "sets": 2,
      "repsMin": 8,
      "repsMax": 10,
      "group": "Core",
      "rest": 0,
-     "hint": "Je Seite · Core-Circuit, 2–3 Runden"
+     "hint": "Je Seite"
     },
     {
      "name": "Side Plank",
      "type": "bodyweight",
      "unit": "sec",
-     "sets": 3,
+     "sets": 2,
      "repsMin": 30,
      "repsMax": 45,
      "group": "Core",
@@ -333,7 +363,7 @@
     {
      "name": "Bird Dogs",
      "type": "bodyweight",
-     "sets": 3,
+     "sets": 2,
      "repsMin": 8,
      "repsMax": 10,
      "group": "Core",
@@ -341,13 +371,17 @@
      "hint": "Je Seite"
     }
    ],
-   "focus": "Beine & Arme + Core",
-   "equipment": "Klimmzugstange, Kurzhanteln, Kettlebell, Sofa/Bank"
+   "groupNames": {
+    "B": "Arm-Superset",
+    "Core": "Core-Circuit"
+   }
   },
   {
    "id": "Fr",
-   "name": "Freitag – Full Body Flow",
-   "note": "Ca. 4 Min. kurzes Ganzkörper-Warm-up",
+   "name": "Freitag – Athletic Full Body",
+   "focus": "Athletic Full Body",
+   "equipment": "Klimmzugstange, Kurzhanteln, Kettlebells",
+   "note": "4–5 Min.: 30 Sek. Jumping Jacks, 10 Air Squats, 8 Scapular Pull-ups, 10 Wall Slides, 3 lockere Pull-ups, 6 lockere Push-ups, 5 leichte Thrusters",
    "exercises": [
     {
      "name": "Pull-ups",
@@ -356,37 +390,36 @@
      "repsMin": 5,
      "repsMax": 6,
      "group": "A",
-     "rest": 0,
-     "hint": "Alternativ Chin-ups"
+     "rest": 0
     },
     {
-     "name": "Push-ups",
+     "name": "Deficit Push-ups",
      "type": "bodyweight",
      "sets": 3,
      "repsMin": 12,
      "repsMax": 15,
      "group": "A",
-     "rest": 0
+     "rest": 0,
+     "hint": "Auf KB-Griffen"
     },
     {
-     "name": "Walking Lunges",
+     "name": "DB Thrusters",
      "sets": 3,
-     "repsMin": 8,
-     "repsMax": 10,
+     "repsMin": 10,
+     "repsMax": 12,
      "weight": 7.5,
      "weights": [
       7.5,
-      12.5,
-      15
+      12.5
      ],
      "group": "A",
-     "rest": 60,
-     "hint": "Je Seite · moderat"
+     "rest": 75,
+     "hint": "Kniebeuge und Schulterdrücken in einer Bewegung · Gewicht pro Kurzhantel"
     },
     {
      "name": "DB Rows",
      "sets": 3,
-     "repsMin": 10,
+     "repsMin": 12,
      "repsMax": 15,
      "weight": 15,
      "weights": [
@@ -399,19 +432,18 @@
      "hint": "Gewicht pro Kurzhantel"
     },
     {
-     "name": "Shoulder Press",
+     "name": "Goblet Side Lunges",
      "sets": 3,
-     "repsMin": 6,
-     "repsMax": 10,
-     "weight": 12.5,
+     "repsMin": 8,
+     "repsMax": 8,
+     "weight": 12,
      "weights": [
-      7.5,
-      12.5,
-      15
+      12,
+      16
      ],
      "group": "B",
      "rest": 0,
-     "hint": "Gewicht pro Kurzhantel"
+     "hint": "Je Seite · Kettlebell vor der Brust, seitlich tief auf ein Bein"
     },
     {
      "name": "Seitheben",
@@ -426,7 +458,7 @@
      ],
      "group": "B",
      "rest": 75,
-     "hint": "Oder Band"
+     "hint": "Gewicht pro Kurzhantel"
     },
     {
      "name": "Rear Delt Rows",
@@ -443,7 +475,7 @@
      "rest": 0
     },
     {
-     "name": "DB Curls",
+     "name": "Hammer Curls",
      "sets": 2,
      "repsMin": 12,
      "repsMax": 15,
@@ -478,7 +510,7 @@
      ],
      "group": "C",
      "rest": 60,
-     "hint": "2 Kettlebells · Gewicht pro Kettlebell"
+     "hint": "2 × 16 kg · Gewicht pro Kettlebell"
     },
     {
      "name": "Hanging Knee Raises",
@@ -486,32 +518,36 @@
      "sets": 2,
      "repsMin": 10,
      "repsMax": 12,
-     "group": "Core",
-     "rest": 0,
-     "hint": "Kurzer Abschluss"
+     "group": "D",
+     "rest": 0
     },
     {
-     "name": "Bird Dogs",
+     "name": "Plank Leg Lifts",
      "type": "bodyweight",
      "sets": 2,
-     "repsMin": 8,
+     "repsMin": 10,
      "repsMax": 10,
-     "group": "Core",
+     "group": "D",
      "rest": 0,
-     "hint": "Je Seite"
+     "hint": "Je Seite · im Unterarmstütz abwechselnd ein Bein gestreckt anheben"
     },
     {
      "name": "Prone Cobra",
      "type": "bodyweight",
      "unit": "sec",
      "sets": 2,
-     "reps": 45,
-     "group": "Core",
-     "rest": 0
+     "repsMin": 45,
+     "repsMax": 45,
+     "group": "D",
+     "rest": 40
     }
    ],
-   "focus": "Ganzkörper-Circuit",
-   "equipment": "Klimmzugstange, Kurzhanteln, Kettlebells"
+   "groupNames": {
+    "A": "Strength Circuit",
+    "B": "Athletic Circuit",
+    "C": "Pump & Carry",
+    "D": "Core & Posture"
+   }
   }
  ],
  "history": [
