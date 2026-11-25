@@ -529,3 +529,62 @@ export function blockStatus(plan, now = Date.now()) {
   const week = Math.floor((now - start) / (7 * 864e5)) + 1;
   return { before: false, week: Math.min(week, plan.block.weeks), weeks: plan.block.weeks, over: week > plan.block.weeks };
 }
+
+// ---------- Geführter Ablauf ----------
+/** Einen Warm-up-Punkt lesen: "30 Jumping Jacks" → reps, "WGS – 20 Sek. je Seite" → sec + Seiten */
+export function parseWarmupItem(text) {
+  const t = String(text).trim();
+  const sides = /je\s+seite/i.test(t);
+  const secM = t.match(/(\d+)\s*(?:sek\.?|sekunden|s)\b/i);
+  if (secM) {
+    const name = t.replace(/\s*[–-]?\s*\d+\s*(?:sek\.?|sekunden|s)\b\.?/i, '').replace(/\s*je\s+seite/i, '').replace(/\s+/g, ' ').trim();
+    return { name: name || t, sec: Number(secM[1]), sides };
+  }
+  const repM = t.match(/^(\d+)\s+(.+)$/);
+  const cap = (x) => x.charAt(0).toUpperCase() + x.slice(1);
+  if (repM) return { name: cap(repM[2].replace(/\s*je\s+seite/i, '').trim()), reps: Number(repM[1]), sides };
+  return { name: t, sides: false };
+}
+
+/**
+ * Ablauf eines Trainings als Liste von Schritten.
+ * input: { warmup: Text, exercises: [{ group, rest, sets: Anzahl, unit, name }], groupNames, cooldown: {name, items}, restDefault }
+ * Schritte: warm | set | rest | cool | feedback
+ */
+export function buildFlow({ warmup = '', exercises = [], groupNames = {}, cooldown = null, restDefault = 90 }) {
+  const steps = [];
+  const w = parseWarmup(warmup);
+  for (const it of w?.items || []) {
+    const x = parseWarmupItem(it);
+    if (x.sec && x.sides) { steps.push({ type: 'warm', name: x.name, sec: x.sec, side: 'links' }); steps.push({ type: 'warm', name: x.name, sec: x.sec, side: 'rechts' }); }
+    else steps.push({ type: 'warm', name: x.name, ...(x.sec ? { sec: x.sec } : {}), ...(x.reps ? { reps: x.reps } : {}), ...(x.sides ? { perSide: true } : {}) });
+  }
+  // Übungen zu Blöcken (gleiche Gruppe hintereinander)
+  const bl = [];
+  exercises.forEach((e, i) => {
+    const last = bl[bl.length - 1];
+    if (e.group && last && last.group === e.group) last.idx.push(i);
+    else bl.push({ group: e.group || '', idx: [i] });
+  });
+  const work = [];
+  for (const b of bl) {
+    const rounds = Math.max(...b.idx.map((i) => exercises[i].sets));
+    const label = b.idx.length > 1 ? (groupNames[b.group] || (b.idx.length > 2 ? 'Circuit' : 'Supersatz')) : '';
+    for (let r = 0; r < rounds; r++) {
+      for (const i of b.idx) {
+        const e = exercises[i];
+        if (r >= e.sets) continue;
+        work.push({ type: 'set', ex: i, set: r, round: r + 1, rounds: b.idx.length > 1 ? rounds : e.sets, block: label, timed: e.unit === 'sec' });
+        const rest = e.rest ?? restDefault;
+        if (rest > 0) work.push({ type: 'rest', sec: rest });
+      }
+    }
+  }
+  while (work.length && work[work.length - 1].type === 'rest') work.pop();
+  steps.push(...work);
+  for (const s of expandCooldown(cooldown).steps) steps.push({ type: 'cool', name: s.name, sec: s.sec, hint: s.hint || '' });
+  steps.push({ type: 'feedback' });
+  return steps;
+}
+
+export const stepPhase = (s) => (s.type === 'warm' ? 'warmup' : s.type === 'cool' ? 'cooldown' : s.type === 'feedback' ? 'end' : 'workout');

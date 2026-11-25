@@ -207,6 +207,26 @@ t('Yoga-Tage und Block', () => {
   eq(L.weekProgress(plan, [yoga], new Date(2026, 10, 26).getTime()).done, 0);
 });
 
+t('Warm-up-Punkte lesen', () => {
+  eq(L.parseWarmupItem('30 Jumping Jacks'), { name: 'Jumping Jacks', reps: 30, sides: false });
+  eq(L.parseWarmupItem("World's Greatest Stretch dynamisch – 20 Sek. je Seite"), { name: "World's Greatest Stretch dynamisch", sec: 20, sides: true });
+  eq(L.parseWarmupItem('6 Reverse Lunges je Seite'), { name: 'Reverse Lunges', reps: 6, sides: true });
+  eq(L.parseWarmupItem('30 Sek. Jumping Jacks'), { name: 'Jumping Jacks', sec: 30, sides: false });
+});
+t('Ablauf: Warm-up, Supersatz verschränkt, Pausen, Cool-down', () => {
+  const f = L.buildFlow({
+    warmup: '30 Jumping Jacks, WGS – 20 Sek. je Seite',
+    exercises: [{ name: 'Chin', sets: 2, rest: 75 }, { name: 'Curl', group: 'B', sets: 2, rest: 0 }, { name: 'Tri', group: 'B', sets: 2, rest: 60 }, { name: 'Plank', sets: 1, rest: 0, unit: 'sec' }],
+    groupNames: { B: 'Arm-Superset' },
+    cooldown: { items: [{ name: 'Toe', sec: 30 }, { name: 'Chest', sec: 30, sides: true }] },
+  });
+  const sig = f.map((x) => x.type === 'set' ? `S${x.ex}.${x.set}` : x.type === 'rest' ? `R${x.sec}` : x.type === 'warm' ? `W${x.side ? x.side[0] : ''}` : x.type === 'cool' ? 'C' : 'F');
+  eq(sig.join(' '), 'W Wl Wr S0.0 R75 S0.1 R75 S1.0 S2.0 R60 S1.1 S2.1 R60 S3.0 C C C F');
+  const curl = f.find((x) => x.type === 'set' && x.ex === 1);
+  eq([curl.block, curl.round, curl.rounds], ['Arm-Superset', 1, 2]);
+  eq(f.find((x) => x.ex === 3).timed, true);
+});
+
 out.insertAdjacentHTML('afterbegin', `<h2 id="summary" class="${fail ? 'fail' : 'ok'}">${pass} bestanden, ${fail} fehlgeschlagen</h2>`);
 </script>
 </body>

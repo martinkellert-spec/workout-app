@@ -1,6 +1,6 @@
 {
  "name": "Finaler Trainingsplan – Strength, Hypertrophy & Athletic Flow",
- "version": 7,
+ "version": 8,
  "block": {
   "weeks": 8,
   "start": "2026-11-25"
@@ -587,7 +587,6 @@
       14,
       14
      ],
-     "note": "Superset mit engen Push-ups",
      "rir": "2–4"
     },
     {

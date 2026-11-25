@@ -6,10 +6,11 @@ import {
   nextWeight, prevWeight, rirSummary, fmtRir, planDayFor, sameDay, testStatus, testHistory, testDelta,
   fmtTestValue, fmtTime, insights, weekProgress, estimateMinutes, blocks, parseWarmup,
   normalizeLibrary, applyEdits, alternativesFor, fromLibrary, expandCooldown, activityFor, blockStatus,
+  buildFlow, stepPhase,
 } from './logic.js';
 import { lineChart, barChart } from './charts.js';
 
-export const APP_VERSION = '3.4.0';
+export const APP_VERSION = '4.0.0';
 
 const $app = document.getElementById('app');
 const $tabbar = document.getElementById('tabbar');
@@ -192,6 +193,7 @@ function dayDetail(day, sel) {
       ${day.subtitle ? `<div class="dsub">${esc(day.subtitle)}</div>` : ''}
       <div class="dmeta"><span>${ICON_CLOCK}≈ ${estimateMinutes(day, S.settings.restDefault) + (day.cooldown && cdById(day.cooldown) ? cdMinutes(cdById(day.cooldown)) : cdList().length ? Math.min(...cdList().map(cdMinutes)) : 0)} Min.</span><span>${ICON_LIST}${day.exercises.length} Übungen</span></div>
       ${day.equipment ? `<div class="dmeta"><span>${ICON_TOOL}${esc(day.equipment)}</span></div>` : ''}
+      <div class="daybtns"><button class="btn pill primary" data-a="start" data-id="${esc(day.id)}">${past ? 'Nachholen' : 'Workout starten'}</button><button class="btn pill glass" data-a="customize" data-id="${esc(day.id)}" data-t="${sel}">Anpassen</button></div>
     </div>
     ${warmupSection(day.note)}
     <details class="sec" open><summary>Workout<span class="chev"></span></summary>
@@ -202,7 +204,7 @@ function dayDetail(day, sel) {
       </div>`).join('')}</div>
     </details>
     ${cooldownSection(day)}
-    <div class="cta2"><button class="btn pill glass" data-a="customize" data-id="${esc(day.id)}" data-t="${sel}">Anpassen</button><button class="btn pill primary" data-a="start" data-id="${esc(day.id)}">${past ? 'Nachholen' : 'Starten'}</button></div>`;
+    <div class="cta2 inline"><button class="btn pill glass" data-a="customize" data-id="${esc(day.id)}" data-t="${sel}">Anpassen</button><button class="btn pill primary" data-a="start" data-id="${esc(day.id)}">${past ? 'Nachholen' : 'Starten'}</button></div>`;
 }
 
 function dayCard(sel) {
@@ -288,6 +290,7 @@ function startTraining(dayId) {
       };
     }),
   };
+  S.draft.flow = { steps: makeFlow(S.draft), i: 0, timer: null };
   saveDraft();
   keepAwake(true);
   go('#/train');
@@ -311,6 +314,10 @@ function badgeFor(sg, ex) {
 }
 
 function viewTrain() {
+  return viewPlayer();
+}
+
+function viewTrainLegacy() {
   const d = S.draft, ex = d.exercises[d.idx], n = d.exercises.length;
   const doneCount = d.exercises.reduce((a, e) => a + e.sets.filter((s) => s.done).length, 0);
   const total = d.exercises.reduce((a, e) => a + e.sets.length, 0);
@@ -380,6 +387,7 @@ function tick() {
     el.textContent = `${Math.floor(m / 60)}:${String(m % 60).padStart(2, '0')}`;
   }
   cooldownTick();
+  flowTick();
   const w = document.getElementById('watch');
   if (w && S.testDraft?.watch?.running) w.textContent = fmtTime(watchSeconds(S.testDraft));
   const cdEl = document.getElementById('cd');
@@ -511,7 +519,8 @@ async function saveSession() {
   const session = {
     id: d.id, startedAt: d.startedAt, endedAt: Date.now(), planName: d.planName, dayId: d.dayId, dayName: d.dayName,
     feeling: d.feeling || null, rpe: d.rpe || null, note: d.note,
-    cooldown: d.cooldown ? { id: d.cooldown.id, name: d.cooldown.name, completed: !!d.cooldown.completed } : null,
+    cooldown: d.flow && d.dayCooldown ? { id: d.dayCooldown, name: cdById(d.dayCooldown)?.name || '', completed: d.flow.steps.some((x) => x.type === 'cool') }
+      : d.cooldown ? { id: d.cooldown.id, name: d.cooldown.name, completed: !!d.cooldown.completed } : null,
     exercises: d.exercises.map((e) => ({ key: e.key, name: e.name, type: e.type, unit: e.unit || 'reps', note: e.note, sets: e.sets.map(({ weight, reps, rir, done: dn }) => ({ weight, reps, rir: rir ?? null, done: dn })) })),
   };
   await db.putSession(session);
@@ -714,6 +723,7 @@ async function swapInTraining() {
       last: hist[0] ? { date: hist[0].date, text: [describePerf(hist[0], cfg.type, cfg.unit), rirSummary(hist[0])].filter(Boolean).join(' · '), note: hist[0].note || '' } : null,
       sets: Array.from({ length: cfg.sets }, () => ({ weight: sg.weight, reps: sg.reps, done: false })),
     };
+    if (d.flow) rebuildFlow(d);
     saveDraft(); closeSheet(); toast(`Getauscht: ${it.name}`); render();
   }, [...alts, ...S.lib.filter((x) => !alts.includes(x) && x.key !== ex.key)]);
 }
@@ -764,6 +774,252 @@ function archiveSection() {
     ${arch.map((a, i) => `<button class="item" data-a="archiveItem" data-i="${i}"><div style="flex:1"><b>${esc(a.name)}</b>
       <div class="muted small">Version ${a.version || 1} · bis ${new Date(a.savedAt).toLocaleDateString('de-DE', { dateStyle: 'medium' })}</div></div><span class="chev"></span></button>`).join('')}
     ${!arch.length ? '<div class="item muted small">Frühere Planstände erscheinen hier automatisch.</div>' : ''}</div>`;
+}
+
+// ---------- Geführter Ablauf (Schritt für Schritt) ----------
+const PREP_SEC = 5;
+
+function makeFlow(d) {
+  const day = S.plan?.days.find((x) => x.id === d.dayId);
+  const cd = d.dayCooldown ? cdById(d.dayCooldown) : null;
+  return buildFlow({
+    warmup: d.dayNote || '',
+    exercises: d.exercises.map((e) => ({ name: e.name, group: e.cfg.group || e.group || '', rest: e.cfg.rest, sets: e.sets.length, unit: e.unit })),
+    groupNames: day?.groupNames || {},
+    cooldown: cd,
+    restDefault: S.settings.restDefault,
+  });
+}
+
+/** Ablauf anlegen (auch für ein Training, das vor dem Update gestartet wurde) */
+function ensureFlow(d) {
+  if (d.flow?.steps?.length) return;
+  const steps = makeFlow(d);
+  const anyDone = d.exercises.some((e) => e.sets.some((x) => x.done));
+  let i = 0;
+  if (anyDone) {
+    i = steps.findIndex((s) => s.type === 'set' && !d.exercises[s.ex].sets[s.set].done);
+    if (i < 0) i = steps.findIndex((s) => s.type === 'cool' || s.type === 'feedback');
+  }
+  d.flow = { steps, i: Math.max(0, i), timer: null };
+  saveDraft();
+}
+
+/** Nach einem Tausch die Schritte neu bauen, Position (Übung/Satz) beibehalten */
+function rebuildFlow(d) {
+  const cur = d.flow?.steps[d.flow.i];
+  const steps = makeFlow(d);
+  let i = cur ? steps.findIndex((s) => s.type === cur.type && s.ex === cur.ex && s.set === cur.set && s.name === cur.name) : 0;
+  d.flow = { steps, i: Math.max(0, i), timer: null };
+}
+
+const stepAt = (d, i) => d.flow.steps[i];
+const stepSec = (d, s) => (s.type === 'set' ? Number(d.exercises[s.ex].sets[s.set].reps) || 30 : s.sec || 0);
+const isTimed = (d, s) => s && (s.type === 'rest' || (s.type === 'set' ? s.timed : !!s.sec) && s.type !== 'feedback');
+
+function stepLabel(d, s) {
+  if (!s) return '';
+  if (s.type === 'warm' || s.type === 'cool') return `${s.name}${s.side ? ` ${s.side}` : ''}`;
+  if (s.type === 'set') return d.exercises[s.ex].name;
+  if (s.type === 'rest') return `Pause ${fmtTime(s.sec)}`;
+  return 'Abschluss';
+}
+
+function nextInfo(d) {
+  const n = stepAt(d, d.flow.i + 1);
+  if (!n) return '';
+  if (n.type === 'rest') return `Danach: Pause ${fmtTime(n.sec)}`;
+  if (n.type === 'feedback') return 'Danach: Abschluss';
+  const same = n.type === 'set' && stepAt(d, d.flow.i)?.type === 'set';
+  return `${same ? 'Danach direkt' : 'Danach'}: ${stepLabel(d, n)}`;
+}
+
+function timerLeft(t) {
+  if (!t) return null;
+  if (t.mode === 'paused') return t.left;
+  return Math.max(0, Math.ceil((t.endsAt - Date.now()) / 1000));
+}
+
+function flowGo(i, { auto = false } = {}) {
+  const d = S.draft;
+  d.flow.i = Math.max(0, Math.min(i, d.flow.steps.length - 1));
+  const s = stepAt(d, d.flow.i);
+  d.flow.timer = null;
+  if (s.type === 'rest') d.flow.timer = { mode: 'run', endsAt: Date.now() + s.sec * 1000 };
+  else if (auto && isTimed(d, s)) d.flow.timer = { mode: 'prep', endsAt: Date.now() + PREP_SEC * 1000 };
+  if (s.type === 'set') d.idx = s.ex;
+  saveDraft(); render(); window.scrollTo(0, 0);
+}
+
+function flowNext() {
+  const d = S.draft, cur = stepAt(d, d.flow.i), nxt = stepAt(d, d.flow.i + 1);
+  // Bei aufeinanderfolgenden Zeit-Schritten im Warm-up/Cool-down automatisch mit Vorbereitung weiter
+  const auto = cur && nxt && (cur.type === 'warm' || cur.type === 'cool') && cur.type === nxt.type && isTimed(d, cur) && isTimed(d, nxt);
+  flowGo(d.flow.i + 1, { auto });
+}
+
+function tone(freq = 880, dur = 0.12) {
+  if (!audio) return;
+  const o = audio.createOscillator(), g = audio.createGain();
+  o.frequency.value = freq;
+  g.gain.setValueAtTime(0.0001, audio.currentTime);
+  g.gain.exponentialRampToValueAtTime(0.3, audio.currentTime + 0.01);
+  g.gain.exponentialRampToValueAtTime(0.0001, audio.currentTime + dur);
+  o.connect(g).connect(audio.destination); o.start(); o.stop(audio.currentTime + dur + 0.02);
+}
+
+/** Satz als erledigt markieren und RIR abfragen */
+function finishSet(d, s) {
+  const st = d.exercises[s.ex].sets[s.set];
+  st.done = true;
+  saveDraft();
+  const bg = sheet(`<h3>Wie viele wären noch gegangen?</h3><p class="muted small" style="text-align:center;margin-top:-8px">RIR · ${esc(d.exercises[s.ex].name)}</p>
+    <div class="rirseg big">${[0, 1, 2, 3, 4].map((v) => `<button data-s="r" data-v="${v}" class="${st.rir === v ? 'on' : ''}">${v === 4 ? '4+' : v}</button>`).join('')}</div>
+    <button class="btn ghost" data-s="skip">Überspringen</button>`, {
+    r: (b) => { st.rir = +b.dataset.v; saveDraft(); closeSheet(); flowNext(); },
+    skip: () => { closeSheet(); flowNext(); },
+  });
+  bg.addEventListener('click', (e) => { if (e.target === bg) flowNext(); });
+}
+
+// Aus tick() aufgerufen: Vorbereitung, Countdown, Pausen
+let lastPrepSec = null;
+function flowTick() {
+  const d = S.draft;
+  if (!d?.flow || !location.hash.startsWith('#/train')) return;
+  const t = d.flow.timer, s = stepAt(d, d.flow.i);
+  if (!t || t.mode === 'paused') return;
+  const left = timerLeft(t);
+  const el = document.getElementById('fltime');
+  if (el) el.textContent = t.mode === 'prep' ? String(left) : fmtTime(left);
+  const ring = document.getElementById('flring');
+  if (ring && t.mode === 'run') { const total = s.type === 'rest' ? s.sec : stepSec(d, s); ring.innerHTML = bigRing(total ? 1 - left / total : 0); }
+  if (t.mode === 'prep') {
+    if (left !== lastPrepSec && left > 0) { lastPrepSec = left; tone(660, 0.08); }
+    if (left <= 0) { lastPrepSec = null; tone(1320, 0.25); d.flow.timer = { mode: 'run', endsAt: Date.now() + stepSec(d, s) * 1000 }; saveDraft(); render(); }
+    return;
+  }
+  if (left > 0) return;
+  // Zeit abgelaufen
+  d.flow.timer = null; saveDraft(); beep();
+  if (s.type === 'set') { render(); finishSet(d, s); }
+  else flowNext();
+}
+
+function bigRing(pct) {
+  const r = 104, c = 2 * Math.PI * r;
+  return `<svg viewBox="0 0 240 240" width="100%" height="100%"><circle cx="120" cy="120" r="${r}" fill="none" stroke="var(--ring-bg)" stroke-width="10"/>
+    <circle cx="120" cy="120" r="${r}" fill="none" stroke="var(--green)" stroke-width="10" stroke-linecap="round" stroke-dasharray="${c.toFixed(1)}" stroke-dashoffset="${(c * (1 - Math.max(0, Math.min(1, pct)))).toFixed(1)}" transform="rotate(-90 120 120)"/></svg>`;
+}
+
+function phaseBar(d) {
+  const st = d.flow.steps, i = d.flow.i;
+  const ph = ['warmup', 'workout', 'cooldown'].map((p) => {
+    const idx = st.map((s, k) => (stepPhase(s) === p ? k : -1)).filter((k) => k >= 0);
+    const doneN = idx.filter((k) => k < i).length;
+    return { n: idx.length, pct: idx.length ? doneN / idx.length : 0 };
+  }).filter((p) => p.n);
+  return `<div class="phbar" style="grid-template-columns:${ph.map((p) => `${Math.max(p.n, 3)}fr`).join(' ')}">${ph.map((p) => `<i><b style="width:${(p.pct * 100).toFixed(1)}%"></b></i>`).join('')}</div>`;
+}
+
+function timerBlock(d, s, total) {
+  const t = d.flow.timer;
+  if (t?.mode === 'prep') {
+    return `<div class="flring prep"><div class="flc"><div class="num flbig" id="fltime">${timerLeft(t)}</div><div class="flsub">Bereit machen</div></div></div>`;
+  }
+  const left = t ? timerLeft(t) : total;
+  return `<div class="flring"><div id="flring" class="flsvg">${bigRing(t ? 1 - left / total : 0)}</div><div class="flc"><div class="num flbig" id="fltime">${fmtTime(left)}</div>
+    ${t?.mode === 'paused' ? '<div class="flsub">Pausiert</div>' : ''}</div></div>`;
+}
+
+function viewPlayer() {
+  const d = S.draft;
+  ensureFlow(d);
+  const steps = d.flow.steps, i = d.flow.i, s = steps[i];
+  const t = d.flow.timer;
+  const head = `<div class="tbar"><button class="iconbtn" data-a="trainMenu" aria-label="Menü">${ICON_X}</button>
+      <button class="crumb" data-a="flowOverview">${esc(d.dayName.split(' – ')[0])} · ${i + 1}/${steps.length} ⌄</button><span class="time" id="elapsed"></span></div>
+    ${phaseBar(d)}`;
+  const back = i > 0 ? '<button class="btn pill glass" data-a="flowBack">Zurück</button>' : '<span></span>';
+  let body = '', cta = '';
+
+  if (s.type === 'warm' || s.type === 'cool') {
+    const ph = steps.filter((x) => x.type === s.type), k = ph.indexOf(s) + 1;
+    body = `<div class="eyebrow">${s.type === 'warm' ? 'Warm-up' : `Cool-down · ${esc(cdById(d.dayCooldown)?.name || '')}`} · ${k} von ${ph.length}</div>
+      <div class="fltitle">${esc(s.name)}${s.side ? `<span class="flside"> ${s.side}</span>` : ''}</div>
+      ${s.sec ? timerBlock(d, s, s.sec) : s.reps ? `<div class="num flhuge">${s.reps}</div><div class="flunit">Wiederholungen${s.perSide ? ' je Seite' : ''}</div>` : '<div class="flunit" style="margin-top:28px">Locker durchführen</div>'}
+      ${s.hint ? `<p class="muted small fltext">${esc(s.hint)}</p>` : ''}`;
+    const main = s.sec && !t ? '<button class="btn pill primary" data-a="flowStart">Start</button>'
+      : s.sec && t?.mode === 'paused' ? '<button class="btn pill primary" data-a="flowResume">Weiter</button>'
+        : s.sec ? '<button class="btn pill primary" data-a="flowPause">Pause</button>'
+          : '<button class="btn pill primary" data-a="flowNext">Weiter</button>';
+    cta = `${back}${main}`;
+    if (s.sec && t) cta = `<button class="btn pill glass" data-a="flowNext">Überspringen</button>${main}`;
+  } else if (s.type === 'set') {
+    const ex = d.exercises[s.ex], st = ex.sets[s.set], cfg = ex.cfg, sg = ex.suggestion;
+    d.idx = s.ex;
+    const isW = ex.type !== 'bodyweight' || st.weight > 0;
+    const up = sg.status === 'up' && ex.type !== 'bodyweight';
+    body = `<div class="eyebrow">${s.block ? `${esc(s.block)} · Runde ${s.round} von ${s.rounds}` : `Satz ${s.round} von ${s.rounds}`}${st.done ? ' · erledigt ✓' : ''}</div>
+      <div class="fltitle">${esc(ex.name)}</div>
+      <div class="flchips"><span class="badge ${up ? 'up' : sg.status === 'down' ? 'down' : ''}">${up ? '↑ ' : ''}Ziel ${sg.reps}${ex.unit === 'sec' ? ' s' : ' Wdh.'}${ex.type === 'bodyweight' && !sg.weight ? '' : ` · ${fmtNum(sg.weight)} kg`}</span>${st.rir != null && st.done ? `<span class="badge">RIR ${fmtRir(st.rir)}</span>` : ''}</div>
+      ${s.timed ? `${timerBlock(d, s, stepSec(d, s))}${!t ? stepperRow('reps', st.reps, 'Sekunden') : ''}${isW && !t ? stepperRow('weight', st.weight, cfg.weights?.length ? 'kg · deine Gewichte' : 'kg') : ''}`
+    : `${isW ? stepperRow('weight', st.weight, ex.type === 'bodyweight' ? 'Zusatzgewicht kg' : 'kg pro Hantel') : ''}${stepperRow('reps', st.reps, 'Wiederholungen')}`}
+      <div class="card small flmem">${ex.last ? `Letztes Mal: <b>${esc(ex.last.text)}</b>` : 'Erstes Mal – Startwerte aus dem Plan'}${cfg.hint ? `<div class="muted" style="margin-top:4px">${esc(cfg.hint)}</div>` : ''}</div>`;
+    const main = s.timed
+      ? (!t ? '<button class="btn pill primary" data-a="flowStart">Start</button>'
+        : t.mode === 'paused' ? '<button class="btn pill primary" data-a="flowResume">Weiter</button>' : '<button class="btn pill primary" data-a="flowPause">Pause</button>')
+      : `<button class="btn pill primary" data-a="flowSetDone">${st.done ? 'Satz aktualisieren' : 'Satz fertig'}</button>`;
+    cta = s.timed && t ? `<button class="btn pill glass" data-a="flowTimedDone">Fertig</button>${main}` : `${back}${main}`;
+  } else if (s.type === 'rest') {
+    const n = steps.slice(i + 1).find((x) => x.type !== 'rest');
+    let nx = '';
+    if (n?.type === 'set') { const e = d.exercises[n.ex], st = e.sets[n.set]; nx = `<b>${esc(e.name)}</b>${n.block ? ` · Runde ${n.round} von ${n.rounds}` : ` · Satz ${n.round} von ${n.rounds}`}<br>${e.type === 'bodyweight' && !st.weight ? '' : `${fmtNum(st.weight)} kg × `}${st.reps}${e.unit === 'sec' ? ' s' : ''}`; }
+    else if (n) nx = `<b>${esc(stepLabel(d, n))}</b>`;
+    body = `<div class="eyebrow">Pause</div><div class="fltitle">Durchatmen</div>
+      ${timerBlock(d, s, s.sec)}
+      ${nx ? `<div class="card flnext"><div class="muted small">Als Nächstes</div><div>${nx}</div></div>` : ''}`;
+    cta = '<button class="btn pill glass" data-a="flowAdd30">+30 s</button><button class="btn pill primary" data-a="flowNext">Überspringen</button>';
+  } else {
+    return `${head}${feedbackBody(d)}`;
+  }
+  const nextLine = s.type !== 'rest' ? `<div class="flnextline">${esc(nextInfo(d))}</div>` : '';
+  const one = cta.startsWith('<span></span>');
+  return `${head}<div class="flbody">${body}</div><div class="cta flcta">${nextLine}<div class="cta2 ${one ? 'one' : ''}" style="position:static;margin:0 auto;max-width:520px">${one ? cta.slice(13) : cta}</div></div>`;
+}
+
+function stepperRow(field, value, label) {
+  return `<div class="flstep"><button data-a="flowStep" data-f="${field}" data-v="-1" aria-label="weniger">−</button>
+    <button class="flval" data-a="flowEdit" data-f="${field}"><span class="num">${fmtNum(value)}</span><small>${esc(label)}</small></button>
+    <button data-a="flowStep" data-f="${field}" data-v="1" aria-label="mehr">+</button></div>`;
+}
+
+function feedbackBody(d) {
+  const vol = volume(d);
+  const sets = d.exercises.reduce((a, e) => a + e.sets.filter((x) => x.done).length, 0);
+  const prs = newRecords(d, done());
+  return `<div class="eyebrow" style="margin-top:14px">Geschafft</div><h1 style="margin-top:4px">Wie war das Workout?</h1>
+    <div class="stats" style="margin-top:14px">
+      <div class="stat"><b>${fmtDuration(Date.now() - d.startedAt)}</b><span>Dauer</span></div>
+      <div class="stat"><b>${sets}</b><span>Sätze</span></div>
+      <div class="stat"><b>${fmtNum(Math.round(vol))}</b><span>kg bewegt</span></div>
+    </div>
+    ${prs.length ? `<h2>Neue Rekorde 🎉</h2>${prs.map((p) => `<div class="pr">${esc(p.name)}: ${esc(p.text)}</div>`).join('')}` : ''}
+    <h2>Anstrengung (RPE)</h2>${rpePicker(d.rpe)}
+    <h2>Notiz</h2>
+    <textarea id="sessnote" placeholder="Technik, Pump, Beschwerden, Energie …">${esc(d.note || '')}</textarea>
+    <button class="btn primary big" data-a="flowSave">Speichern</button>
+    <button class="btn ghost" data-a="flowBack">Zurück</button>`;
+}
+
+function flowStepValue(field, dir) {
+  const d = S.draft, s = stepAt(d, d.flow.i), ex = d.exercises[s.ex], st = ex.sets[s.set];
+  let v = st[field];
+  if (field === 'weight') v = ex.cfg.weights?.length ? (dir > 0 ? nextWeight(ex.cfg, v) : prevWeight(ex.cfg, v)) ?? v : Math.max(0, Math.round((v + dir * (ex.cfg.increment || 2.5)) * 100) / 100);
+  else v = Math.max(1, v + dir * (ex.unit === 'sec' ? 5 : 1));
+  // gilt auch für die folgenden, noch offenen Sätze dieser Übung
+  ex.sets.forEach((x, j) => { if (j === s.set || (j > s.set && !x.done)) x[field] = v; });
+  saveDraft(); render();
 }
 
 // ---------- Cool-down ----------
@@ -1131,6 +1387,33 @@ const actions = {
   },
   pickDay: (a) => { S.pickDay = a.dataset.id; render(); },
   selDay: (a) => { S.selDate = +a.dataset.t; render(); },
+  flowNext: () => { unlockAudio(); flowNext(); },
+  flowBack: () => { const d = S.draft; if (d.flow.i > 0) { let j = d.flow.i - 1; while (j > 0 && stepAt(d, j).type === 'rest') j--; flowGo(j); } },
+  flowStart: () => { unlockAudio(); S.draft.flow.timer = { mode: 'prep', endsAt: Date.now() + PREP_SEC * 1000 }; saveDraft(); render(); },
+  flowPause: () => { const t = S.draft.flow.timer; if (!t) return; S.draft.flow.timer = { mode: 'paused', left: timerLeft(t), was: t.mode }; saveDraft(); render(); },
+  flowResume: () => { const t = S.draft.flow.timer; S.draft.flow.timer = { mode: t.was || 'run', endsAt: Date.now() + t.left * 1000 }; saveDraft(); render(); },
+  flowAdd30: () => { const t = S.draft.flow.timer; if (t?.endsAt) { t.endsAt += 30000; saveDraft(); flowTick(); } },
+  flowSetDone: () => { unlockAudio(); const d = S.draft; finishSet(d, stepAt(d, d.flow.i)); },
+  flowTimedDone: () => { const d = S.draft, s = stepAt(d, d.flow.i), t = d.flow.timer;
+    if (t?.mode === 'run' || (t?.mode === 'paused' && t.was === 'run')) { const done = stepSec(d, s) - timerLeft(t); if (done > 0) d.exercises[s.ex].sets[s.set].reps = done; }
+    d.flow.timer = null; saveDraft(); render(); finishSet(d, s); },
+  flowStep: (a) => flowStepValue(a.dataset.f, +a.dataset.v),
+  flowEdit: (a) => { const d = S.draft, s = stepAt(d, d.flow.i); d.idx = s.ex; editValue(s.set, a.dataset.f); },
+  flowSave: () => saveSession(),
+  flowOverview: () => {
+    const d = S.draft;
+    let html = '', ph = '';
+    d.flow.steps.forEach((x, k) => {
+      if (x.type === 'rest') return;
+      const p = stepPhase(x);
+      if (p !== ph) { ph = p; html += `<div class="item muted small" style="font-weight:600">${{ warmup: 'Warm-up', workout: 'Workout', cooldown: 'Cool-down', end: 'Abschluss' }[p]}</div>`; }
+      const isDone = x.type === 'set' ? d.exercises[x.ex].sets[x.set].done : k < d.flow.i;
+      const det = x.type === 'set' ? `${x.block ? `${x.block} · ` : ''}${x.block ? 'Runde' : 'Satz'} ${x.round}/${x.rounds}` : x.sec ? fmtTime(x.sec) : x.reps ? `${x.reps} Wdh.` : '';
+      html += `<button class="item" data-s="go" data-i="${k}" style="${k === d.flow.i ? 'background:var(--green-soft)' : ''}"><span style="width:18px;color:var(--green)">${isDone ? '✓' : ''}</span><span style="flex:1">${esc(stepLabel(d, x))}</span><span class="muted small">${esc(det)}</span></button>`;
+    });
+    sheet(`<h3>Ablauf</h3><div class="list sheetlist">${html}</div>`, { go: (b) => { closeSheet(); flowGo(+b.dataset.i); } });
+    setTimeout(() => document.querySelector('.sheetlist [style*="green-soft"]')?.scrollIntoView({ block: 'center' }), 50);
+  },
   activityDone: (a) => {
     const t = +a.dataset.t, name = a.dataset.n;
     sheet(`<h3>${esc(name)} erledigt</h3><p class="muted small" style="text-align:center">Wie lange?</p>
@@ -1299,7 +1582,7 @@ const actions = {
     <button class="btn ghost" data-s="close">Abbrechen</button>`, {
     swap: () => { closeSheet(); swapInTraining(); },
     pause: () => { closeSheet(); keepAwake(false); go('#/'); },
-    finish: () => { closeSheet(); go('#/done'); },
+    finish: () => { closeSheet(); if (S.draft.flow) flowGo(S.draft.flow.steps.length - 1); else go('#/done'); },
     discard: () => confirmSheet('Training verwerfen?', 'Alle Einträge dieses Trainings gehen verloren.', 'Verwerfen', async () => {
       await db.delMeta('draft'); S.draft = null; keepAwake(false); go('#/');
     }),
@@ -1390,13 +1673,29 @@ $app.addEventListener('click', (e) => {
   if (a && actions[a.dataset.a] && !a.disabled) { e.preventDefault(); actions[a.dataset.a](a); }
 });
 
+// Tab-Leiste beim Herunterscrollen ausblenden, beim Hochscrollen wieder zeigen (wie iOS)
+let lastY = 0, scrollIdle;
+window.addEventListener('scroll', () => {
+  const y = window.scrollY;
+  clearTimeout(scrollIdle);
+  scrollIdle = setTimeout(() => $tabbar.classList.remove('away'), 900); // nach kurzem Stillstand wieder zeigen
+  if (y < 60) { $tabbar.classList.remove('away'); lastY = y; return; }
+  if (Math.abs(y - lastY) < 6) return;
+  $tabbar.classList.toggle('away', y > lastY);
+  lastY = y;
+}, { passive: true });
+window.addEventListener('hashchange', () => { $tabbar.classList.remove('away'); lastY = 0; });
+
 // Wischen zwischen Übungen
 let touch;
 $app.addEventListener('touchstart', (e) => { touch = { x: e.touches[0].clientX, y: e.touches[0].clientY }; }, { passive: true });
 $app.addEventListener('touchend', (e) => {
   if (!touch || !location.hash.startsWith('#/train')) return;
   const dx = e.changedTouches[0].clientX - touch.x, dy = e.changedTouches[0].clientY - touch.y;
-  if (Math.abs(dx) > 70 && Math.abs(dy) < 50) actions[dx < 0 ? 'next' : 'prev']();
+  if (Math.abs(dx) > 70 && Math.abs(dy) < 50) {
+    if (S.draft?.flow) { if (dx > 0 && S.draft.flow.i > 0 && !S.draft.flow.timer) actions.flowBack(); }
+    else actions[dx < 0 ? 'next' : 'prev']();
+  }
   touch = null;
 }, { passive: true });
 
