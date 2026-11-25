@@ -10,7 +10,7 @@ import {
 } from './logic.js';
 import { lineChart, barChart } from './charts.js';
 
-export const APP_VERSION = '4.0.0';
+export const APP_VERSION = '4.0.1';
 
 const $app = document.getElementById('app');
 const $tabbar = document.getElementById('tabbar');
@@ -204,7 +204,7 @@ function dayDetail(day, sel) {
       </div>`).join('')}</div>
     </details>
     ${cooldownSection(day)}
-    <div class="cta2 inline"><button class="btn pill glass" data-a="customize" data-id="${esc(day.id)}" data-t="${sel}">Anpassen</button><button class="btn pill primary" data-a="start" data-id="${esc(day.id)}">${past ? 'Nachholen' : 'Starten'}</button></div>`;
+`;
 }
 
 function dayCard(sel) {
@@ -1674,12 +1674,11 @@ $app.addEventListener('click', (e) => {
 });
 
 // Tab-Leiste beim Herunterscrollen ausblenden, beim Hochscrollen wieder zeigen (wie iOS)
-let lastY = 0, scrollIdle;
+let lastY = 0;
 window.addEventListener('scroll', () => {
   const y = window.scrollY;
-  clearTimeout(scrollIdle);
-  scrollIdle = setTimeout(() => $tabbar.classList.remove('away'), 900); // nach kurzem Stillstand wieder zeigen
-  if (y < 60) { $tabbar.classList.remove('away'); lastY = y; return; }
+  const atEnd = y + window.innerHeight >= document.documentElement.scrollHeight - 40;
+  if (y < 60 || atEnd) { $tabbar.classList.remove('away'); lastY = y; return; }
   if (Math.abs(y - lastY) < 6) return;
   $tabbar.classList.toggle('away', y > lastY);
   lastY = y;
